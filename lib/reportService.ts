@@ -46,13 +46,22 @@ export async function submitReport(
     const trackingCode = generateTrackingCode();
     const institution = getInstitution(data.category);
 
-    const reportData: SubmittedReport = {
-      ...data,
+    // Build report data, filtering out undefined values
+    const reportData: Record<string, any> = {
       trackingCode,
+      category: data.category,
+      priority: data.priority,
+      description: data.description,
       institution,
       status: "Submitted",
       createdAt: Timestamp.now(),
     };
+
+    // Add optional fields only if they have values
+    if (data.name) reportData.name = data.name;
+    if (data.phone) reportData.phone = data.phone;
+    if (data.email) reportData.email = data.email;
+    if (data.location) reportData.location = data.location;
 
     // Add to Firestore 'reports' collection
     const docRef = await addDoc(collection(db, "reports"), reportData);
