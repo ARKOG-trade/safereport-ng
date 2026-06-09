@@ -1,4 +1,4 @@
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, Timestamp, query, where, getDocs } from "firebase/firestore";
 import { getDb } from "./firebase";
 
 export interface ReportFormData {
@@ -63,8 +63,11 @@ export async function submitReport(
     if (data.email) reportData.email = data.email;
     if (data.location) reportData.location = data.location;
 
+    // Convert to JSON and back to strip any undefined values
+    const sanitizedReportData = JSON.parse(JSON.stringify(reportData));
+
     // Add to Firestore 'reports' collection
-    const docRef = await addDoc(collection(db, "reports"), reportData);
+    const docRef = await addDoc(collection(db, "reports"), sanitizedReportData);
 
     return {
       success: true,
@@ -78,6 +81,43 @@ export async function submitReport(
         error instanceof Error
           ? error.message
           : "Failed to submit report. Please try again.",
+    };
+  }
+}
+
+export async function getReportByTrackingCode(
+  trackingCode: string
+): Promise<{ success: boolean; report?: SubmittedReport | null; error?: string }> {
+  try {
+    const db = getDb();
+    const normalizedCode = trackingCode.trim().toUpperCase();
+    const reportsQuery = query(
+      collection(db, "reports"),
+      where("trackingCode", "==", normalizedCode)
+    );
+    const snapshot = await getDocs(reportsQuery);
+
+    if (snapshot.empty) {
+      return {
+        success: true,
+        report: null,
+      };
+    }
+
+    const reportData = snapshot.docs[0].data() as SubmittedReport;
+
+    return {
+      success: true,
+      report: reportData,
+    };
+  } catch (error) {
+    console.error("Error looking up report:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to search for report. Please try again.",
     };
   }
 }
