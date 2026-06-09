@@ -1,46 +1,86 @@
 import Link from "next/link";
 
 const categories = [
-  { id: "crime", label: "Crime", emoji: "🚓", color: "border-red-400" },
-  { id: "medical", label: "Medical", emoji: "🚑", color: "border-green-400" },
-  { id: "fire", label: "Fire", emoji: "🔥", color: "border-orange-400" },
-  { id: "cybercrime", label: "Cybercrime", emoji: "🖥️", color: "border-indigo-400" },
-  { id: "other", label: "Other Emergency", emoji: "⚠️", color: "border-yellow-400" },
+  {
+    label: "Report Crime",
+    details: "Securely submit details for criminal activity.",
+    icon: "🚓",
+    highlight: "border-red-400/60 bg-red-50/70 dark:bg-red-500/10",
+  },
+  {
+    label: "Medical Emergency",
+    details: "Get help for urgent health and injury cases.",
+    icon: "🚑",
+    highlight: "border-emerald-400/60 bg-emerald-50/70 dark:bg-emerald-500/10",
+  },
+  {
+    label: "Fire Emergency",
+    details: "Report fires quickly so responders can act fast.",
+    icon: "🔥",
+    highlight: "border-orange-400/60 bg-orange-50/70 dark:bg-orange-500/10",
+  },
+  {
+    label: "Cybercrime",
+    details: "Report online fraud, hacking, or data theft.",
+    icon: "🖥️",
+    highlight: "border-indigo-400/60 bg-indigo-50/70 dark:bg-indigo-500/10",
+  },
+  {
+    label: "Other Emergency",
+    details: "Report any other urgent situation anonymously.",
+    icon: "⚠️",
+    highlight: "border-sky-400/60 bg-sky-50/70 dark:bg-sky-500/10",
+  },
 ];
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans dark:bg-black text-zinc-900 dark:text-zinc-50">
-      <main className="mx-auto max-w-5xl px-6 py-16">
-        <header className="mb-10 text-center">
-          <h1 className="text-4xl font-bold">SafeReport NG</h1>
-          <p className="mt-2 text-lg text-zinc-600 dark:text-zinc-400">
-            Quickly report emergencies to the right responders. Choose a category
-            below to get started.
-          </p>
-        </header>
+    <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
+      <main className="mx-auto max-w-6xl px-6 py-16 sm:px-8 lg:px-12 lg:py-24">
+        <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-8 shadow-[0_35px_80px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/95">
+          <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
+            <div>
+              <span className="inline-flex rounded-full bg-slate-900 px-4 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white shadow-sm shadow-slate-900/10 dark:bg-slate-50 dark:text-slate-950">
+                SafeReport NG
+              </span>
+              <p className="mt-4 text-sm uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Powered by DFOC</p>
+              <h1 className="mt-6 text-5xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-6xl">
+                SafeReport NG
+              </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">
+                Anonymous crime and emergency reporting platform built for fast, secure,
+                and modern incident reporting.
+              </p>
+            </div>
 
-        <section>
-          <h2 className="sr-only">Emergency Categories</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((c) => (
-              <Link
-                key={c.id}
-                href={`/report/${c.id}`}
-                className={`group flex flex-col justify-between rounded-lg border p-5 transition-shadow hover:shadow-lg ${c.color} border-opacity-30 bg-white dark:bg-[#0b0b0b]`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="rounded-full bg-black/5 p-3 text-2xl dark:bg-white/5">{c.emoji}</div>
-                  <div>
-                    <h3 className="text-xl font-semibold">{c.label}</h3>
-                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Tap to start a report for {c.label.toLowerCase()}.</p>
-                  </div>
-                </div>
-                <div className="mt-4 text-sm font-medium text-foreground/80 group-hover:text-foreground">Start Report →</div>
-              </Link>
-            ))}
+            <div className="rounded-[1.75rem] bg-slate-50 p-6 shadow-[0_30px_60px_-30px_rgba(15,23,42,0.35)] dark:bg-slate-950/90">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                Choose an emergency type
+              </p>
+              <div className="mt-6 grid gap-4">
+                {categories.map((item) => (
+                  <Link
+                    key={item.label}
+                    href={`/report?category=${encodeURIComponent(item.label)}`}
+                    className={`group flex w-full items-start gap-4 rounded-3xl border px-5 py-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${item.highlight} border-opacity-70 focus:outline-none focus:ring-2 focus:ring-slate-400/60 dark:focus:ring-slate-200/30`}
+                  >
+                    <span className="flex h-12 w-12 items-center justify-center rounded-3xl bg-white text-2xl shadow-sm shadow-slate-200/60 dark:bg-slate-950 dark:shadow-slate-950/40">
+                      {item.icon}
+                    </span>
+                    <div>
+                      <p className="text-base font-semibold text-slate-950 dark:text-slate-50">
+                        {item.label}
+                      </p>
+                      <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
+                        {item.details}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
-        </section>
+        </div>
       </main>
     </div>
   );
