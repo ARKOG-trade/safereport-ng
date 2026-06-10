@@ -25,6 +25,7 @@ export interface SubmittedReport extends ReportFormData {
   institution: string;
   status: string;
   createdAt: Timestamp;
+  isSpam?: boolean;
 }
 
 // Generate tracking code in format DFOC-XXXXXX
@@ -148,6 +149,47 @@ export async function updateReportStatus(
         error instanceof Error
           ? error.message
           : "Unable to update report status. Please try again.",
+    };
+  }
+}
+
+export async function updateReportInstitution(
+  id: string,
+  institution: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = getDb();
+    const reportRef = doc(db, "reports", id);
+    await updateDoc(reportRef, { institution });
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating report institution:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to update report institution. Please try again.",
+    };
+  }
+}
+
+export async function markReportAsSpam(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = getDb();
+    const reportRef = doc(db, "reports", id);
+    await updateDoc(reportRef, { isSpam: true, status: "Spam" });
+    return { success: true };
+  } catch (error) {
+    console.error("Error marking report as spam:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to mark report as spam. Please try again.",
     };
   }
 }
