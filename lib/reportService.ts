@@ -6,6 +6,7 @@ import {
   where,
   getDocs,
   updateDoc,
+  deleteDoc,
   doc,
 } from "firebase/firestore";
 import { getDb } from "./firebase";
@@ -190,6 +191,26 @@ export async function markReportAsSpam(
         error instanceof Error
           ? error.message
           : "Unable to mark report as spam. Please try again.",
+    };
+  }
+}
+
+export async function deleteReport(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = getDb();
+    const reportRef = doc(db, "reports", id);
+    await deleteDoc(reportRef);
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting report:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to delete report. Please try again.",
     };
   }
 }

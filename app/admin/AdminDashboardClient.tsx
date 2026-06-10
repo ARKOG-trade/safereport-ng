@@ -9,11 +9,13 @@ import {
   updateReportStatus,
   updateReportInstitution,
   markReportAsSpam,
+  deleteReport,
 } from "@/lib/reportService";
 import { formatDate } from "@/lib/dateUtils";
 
 const institutionOptions = ["All", "Police", "Hospital", "Fire Service", "Cybercrime Unit", "Admin Review"];
 const statusOptions = ["All", "Submitted", "Received", "In Progress", "Resolved"];
+const statusChangeOptions = ["Submitted", "Received", "In Progress", "Resolved", "Spam"];
 const priorityOptions = ["All", "Low", "Medium", "High", "Critical"];
 const reassignOptions = ["Police", "Hospital", "Fire Service", "Cybercrime Unit", "Admin Review"];
 
@@ -115,6 +117,20 @@ export default function AdminDashboardClient() {
     const result = await markReportAsSpam(reportId);
     if (!result.success) {
       setError(result.error || "Unable to mark report as spam. Please try again.");
+    }
+
+    setIsUpdatingId(null);
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    setIsUpdatingId(reportId);
+    setError(null);
+
+    const result = await deleteReport(reportId);
+    if (!result.success) {
+      setError(result.error || "Unable to delete report. Please try again.");
+    } else {
+      setSelectedReport(null);
     }
 
     setIsUpdatingId(null);
@@ -338,6 +354,22 @@ export default function AdminDashboardClient() {
 
                   <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900">
                     <label className="space-y-2 block">
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">Change Status</span>
+                      <select
+                        value={selectedReport.status}
+                        onChange={(event) => handleStatusChange(selectedReport.id, event.target.value)}
+                        disabled={isUpdatingId === selectedReport.id}
+                        className="w-full rounded-3xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200/70 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50 dark:focus:border-slate-500 dark:focus:ring-slate-500/20"
+                      >
+                        {statusChangeOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="space-y-2 block">
                       <span className="text-sm font-medium text-slate-900 dark:text-slate-100">Reassign Institution</span>
                       <select
                         value={selectedReport.institution}
@@ -362,7 +394,17 @@ export default function AdminDashboardClient() {
                       Mark as spam
                     </button>
                     {selectedReport.isSpam && (
-                      <p className="text-sm font-medium text-rose-700 dark:text-rose-300">This report is marked as spam.</p>
+                      <>
+                        <p className="text-sm font-medium text-rose-700 dark:text-rose-300">This report is marked as spam.</p>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteReport(selectedReport.id)}
+                          disabled={isUpdatingId === selectedReport.id}
+                          className="w-full rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                        >
+                          Delete spam report
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
