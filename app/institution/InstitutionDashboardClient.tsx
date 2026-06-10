@@ -8,6 +8,7 @@ import { SubmittedReport, updateReportStatus } from "@/lib/reportService";
 
 const institutionOptions = ["All", "Police", "Hospital", "Fire Service", "Cybercrime Unit", "Admin Review"];
 const statusOptions = ["All", "Submitted", "Received", "In Progress", "Resolved"];
+const priorityOptions = ["All", "Low", "Medium", "High", "Critical"];
 
 interface ReportRow extends SubmittedReport {
   id: string;
@@ -31,6 +32,7 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [selectedInstitution, setSelectedInstitution] = useState(institutionFilter ?? "All");
   const [selectedStatus, setSelectedStatus] = useState("All");
+  const [selectedPriority, setSelectedPriority] = useState("All");
   const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,9 +66,10 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
     return reports.filter((report) => {
       const institutionMatch = selectedInstitution === "All" || report.institution === selectedInstitution;
       const statusMatch = selectedStatus === "All" || report.status === selectedStatus;
-      return institutionMatch && statusMatch;
+      const priorityMatch = selectedPriority === "All" || report.priority === selectedPriority;
+      return institutionMatch && statusMatch && priorityMatch;
     });
-  }, [reports, selectedInstitution, selectedStatus]);
+  }, [reports, selectedInstitution, selectedStatus, selectedPriority]);
 
   const handleStatusChange = async (reportId: string, newStatus: string) => {
     setIsUpdatingId(reportId);
@@ -116,7 +119,7 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
             </div>
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Current filter</p>
-              <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{selectedInstitution} / {selectedStatus}</p>
+              <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{selectedInstitution} / {selectedStatus} / {selectedPriority}</p>
             </div>
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Live updates</p>
@@ -130,7 +133,7 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
             </div>
           )}
 
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-8 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-900 dark:text-slate-100">Institution</span>
               <select
@@ -160,6 +163,20 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
                 ))}
               </select>
             </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-slate-900 dark:text-slate-100">Priority</span>
+              <select
+                value={selectedPriority}
+                onChange={(event) => setSelectedPriority(event.target.value)}
+                className="w-full rounded-3xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200/70 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50 dark:focus:border-slate-500 dark:focus:ring-slate-500/20"
+              >
+                {priorityOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Matching institution</p>
               <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{institutionLabel}</p>
@@ -167,6 +184,10 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Matching status</p>
               <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{selectedStatus}</p>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Matching priority</p>
+              <p className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{selectedPriority}</p>
             </div>
           </div>
 
@@ -177,6 +198,7 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
                   <tr>
                     <th className="px-6 py-4 font-semibold uppercase tracking-[0.16em]">Tracking Code</th>
                     <th className="px-6 py-4 font-semibold uppercase tracking-[0.16em]">Category</th>
+                    <th className="px-6 py-4 font-semibold uppercase tracking-[0.16em]">Institution</th>
                     <th className="px-6 py-4 font-semibold uppercase tracking-[0.16em]">Priority</th>
                     <th className="px-6 py-4 font-semibold uppercase tracking-[0.16em]">Status</th>
                     <th className="px-6 py-4 font-semibold uppercase tracking-[0.16em]">Date Submitted</th>
@@ -185,7 +207,7 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
                 <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-700 dark:bg-slate-950">
                   {filteredReports.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                      <td colSpan={6} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
                         No reports match the selected filters.
                       </td>
                     </tr>
@@ -194,6 +216,7 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
                       <tr key={report.id} className="hover:bg-slate-50 dark:hover:bg-slate-900">
                         <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100">{report.trackingCode}</td>
                         <td className="px-6 py-4 text-slate-700 dark:text-slate-200">{report.category}</td>
+                        <td className="px-6 py-4 text-slate-700 dark:text-slate-200">{report.institution}</td>
                         <td className="px-6 py-4 text-slate-700 dark:text-slate-200">{report.priority}</td>
                         <td className="px-6 py-4">
                           <select
