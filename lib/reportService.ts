@@ -1,4 +1,13 @@
-import { collection, addDoc, Timestamp, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  Timestamp,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 import { getDb } from "./firebase";
 
 export interface ReportFormData {
@@ -118,6 +127,27 @@ export async function getReportByTrackingCode(
         error instanceof Error
           ? error.message
           : "Unable to search for report. Please try again.",
+    };
+  }
+}
+
+export async function updateReportStatus(
+  id: string,
+  status: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = getDb();
+    const reportRef = doc(db, "reports", id);
+    await updateDoc(reportRef, { status });
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating report status:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to update report status. Please try again.",
     };
   }
 }
