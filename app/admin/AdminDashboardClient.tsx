@@ -86,6 +86,10 @@ export default function AdminDashboardClient() {
     resolved: reports.filter((report) => report.status === "Resolved").length,
   }), [reports]);
 
+  const selectedReportUpdatedAt = selectedReport
+    ? selectedReport.updatedAt || selectedReport.createdAt
+    : null;
+
   const handleStatusChange = async (reportId: string, newStatus: string) => {
     setIsUpdatingId(reportId);
     setError(null);
@@ -308,7 +312,11 @@ export default function AdminDashboardClient() {
 
               {selectedReport ? (
                 <div className="space-y-5">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Tracking Code</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{selectedReport.trackingCode}</p>
+                    </div>
                     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                       <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Category</p>
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{selectedReport.category}</p>
@@ -318,12 +326,20 @@ export default function AdminDashboardClient() {
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{selectedReport.priority}</p>
                     </div>
                     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Institution</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{selectedReport.institution}</p>
+                    </div>
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                       <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Status</p>
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{selectedReport.status}</p>
                     </div>
                     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
-                      <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Date</p>
+                      <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Date Submitted</p>
                       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{formatDate(selectedReport.createdAt)}</p>
+                    </div>
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+                      <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Last Updated</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{formatDate(selectedReportUpdatedAt)}</p>
                     </div>
                   </div>
 

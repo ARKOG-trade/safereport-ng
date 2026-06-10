@@ -26,6 +26,7 @@ export interface SubmittedReport extends ReportFormData {
   institution: string;
   status: string;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
   isSpam?: boolean;
 }
 
@@ -66,6 +67,7 @@ export async function submitReport(
       institution,
       status: "Submitted",
       createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
     // Add optional fields only if they have values
@@ -140,7 +142,7 @@ export async function updateReportStatus(
   try {
     const db = getDb();
     const reportRef = doc(db, "reports", id);
-    await updateDoc(reportRef, { status });
+    await updateDoc(reportRef, { status, updatedAt: Timestamp.now() });
     return { success: true };
   } catch (error) {
     console.error("Error updating report status:", error);
@@ -161,7 +163,7 @@ export async function updateReportInstitution(
   try {
     const db = getDb();
     const reportRef = doc(db, "reports", id);
-    await updateDoc(reportRef, { institution });
+    await updateDoc(reportRef, { institution, updatedAt: Timestamp.now() });
     return { success: true };
   } catch (error) {
     console.error("Error updating report institution:", error);
@@ -181,7 +183,7 @@ export async function markReportAsSpam(
   try {
     const db = getDb();
     const reportRef = doc(db, "reports", id);
-    await updateDoc(reportRef, { isSpam: true, status: "Spam" });
+    await updateDoc(reportRef, { isSpam: true, status: "Spam", updatedAt: Timestamp.now() });
     return { success: true };
   } catch (error) {
     console.error("Error marking report as spam:", error);
