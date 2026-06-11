@@ -8,8 +8,9 @@ const institutionMap: Record<string, string> = {
   cybercrime: "Cybercrime Unit",
 };
 
-export default function InstitutionSpecificPage({ params }: { params: { institution: string } }) {
-  const institutionKey = params.institution.toLowerCase();
+export default async function InstitutionSpecificPage({ params }: { params: { institution: string } }) {
+  const resolvedParams = await params;
+  const institutionKey = String(resolvedParams.institution).toLowerCase();
   const institutionName = institutionMap[institutionKey];
 
   if (!institutionName) {

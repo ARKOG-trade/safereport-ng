@@ -41,10 +41,12 @@ export default function AdminDashboardClient() {
     const unsubscribe = onSnapshot(
       reportsQuery,
       (snapshot) => {
+        console.log('[AdminDashboard] snapshot received', snapshot.docs.length);
         const loadedReports: ReportRow[] = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...(doc.data() as SubmittedReport),
         }));
+        console.log('[AdminDashboard] loadedReports', loadedReports);
         setReports(loadedReports);
         setError(null);
       },

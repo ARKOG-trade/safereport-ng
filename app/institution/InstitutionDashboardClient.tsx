@@ -5,6 +5,7 @@ import Link from "next/link";
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
 import { SubmittedReport, updateReportStatus } from "@/lib/reportService";
+import { formatDate } from "@/lib/dateUtils";
 
 const institutionOptions = ["All", "Police", "Hospital", "Fire Service", "Cybercrime Unit", "Admin Review"];
 const statusOptions = ["All", "Submitted", "Received", "In Progress", "Resolved"];
@@ -16,16 +17,6 @@ interface ReportRow extends SubmittedReport {
 
 interface InstitutionDashboardClientProps {
   institutionFilter?: string;
-}
-
-function formatDate(timestamp: SubmittedReport["createdAt"]) {
-  return timestamp.toDate().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 export default function InstitutionDashboardClient({ institutionFilter }: InstitutionDashboardClientProps) {
@@ -40,16 +31,29 @@ export default function InstitutionDashboardClient({ institutionFilter }: Instit
     const db = getDb();
     const reportsRef = collection(db, "reports");
     const reportsQuery = institutionFilter
-      ? query(reportsRef, where("institution", "==", institutionFilter), orderBy("createdAt", "desc"))
+      ? query(reportsRef)
       : query(reportsRef, orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(
       reportsQuery,
       (snapshot) => {
-        const loadedReports: ReportRow[] = snapshot.docs.map((doc) => ({
+        console.log('[InstitutionDashboard] snapshot received', snapshot.docs.length);
+        let loadedReports: ReportRow[] = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...(doc.data() as SubmittedReport),
         }));
+
+        // If we're filtering by institution, apply the filter and sort client-side
+        if (institutionFilter) {
+          loadedReports = loadedReports
+            .filter((r) => r.institution === institutionFilter)
+            .sort((a, b) => {
+              const aTime = (a.createdAt && (a.createdAt as any).toMillis ? (a.createdAt as any).toMillis() : new Date(a.createdAt as any).getTime()) || 0;
+              const bTime = (b.createdAt && (b.createdAt as any).toMillis ? (b.createdAt as any).toMillis() : new Date(b.createdAt as any).getTime()) || 0;
+              return bTime - aTime;
+            });
+        }
+        console.log('[InstitutionDashboard] loadedReports', loadedReports);
         setReports(loadedReports);
         setError(null);
       },

@@ -3,16 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { getReportByTrackingCode, SubmittedReport } from "@/lib/reportService";
-
-function formatDate(timestamp: SubmittedReport["createdAt"]) {
-  return timestamp.toDate().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+import { formatDate } from "@/lib/dateUtils";
 
 export default function TrackPage() {
   const [trackingCode, setTrackingCode] = useState("");

@@ -51,12 +51,18 @@ export default function Home() {
                 Anonymous crime and emergency reporting platform built for fast, secure,
                 and modern incident reporting.
               </p>
-              <div className="mt-8">
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Link
                   href="/track"
                   className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-50 dark:text-slate-950 dark:hover:bg-slate-100"
                 >
                   Track existing reports
+                </Link>
+                <Link
+                  href="/admin"
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700/70 dark:bg-slate-900/90 dark:text-slate-100 dark:hover:bg-slate-800"
+                >
+                  Admin dashboard
                 </Link>
               </div>
             </div>
