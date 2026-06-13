@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import InstitutionDashboardClient from "@/app/institution/InstitutionDashboardClient";
+import InstitutionAuthGuard from "@/app/institution/InstitutionAuthGuard";
 
 const institutionMap: Record<string, string> = {
   police: "Police",
@@ -7,7 +8,6 @@ const institutionMap: Record<string, string> = {
   fire: "Fire Service",
   cybercrime: "Cybercrime Unit",
 };
-
 export default async function InstitutionSpecificPage({ params }: { params: { institution: string } }) {
   const resolvedParams = await params;
   const institutionKey = String(resolvedParams.institution).toLowerCase();
@@ -17,5 +17,9 @@ export default async function InstitutionSpecificPage({ params }: { params: { in
     notFound();
   }
 
-  return <InstitutionDashboardClient institutionFilter={institutionName} />;
+return (
+  <InstitutionAuthGuard>
+    <InstitutionDashboardClient institutionFilter={institutionName} />
+  </InstitutionAuthGuard>
+);
 }
