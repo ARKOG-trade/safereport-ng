@@ -133,6 +133,14 @@ export default function TrackPage() {
                   <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Date submitted</p>
                   <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{formatDate(report.createdAt)}</p>
                 </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-950 sm:col-span-2">
+  <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+    Institution Update
+  </p>
+  <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+    {report.publicMessage || "No update from institution yet."}
+  </p>
+</div>
               </div>
             </div>
           )}

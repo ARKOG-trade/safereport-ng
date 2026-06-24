@@ -28,8 +28,9 @@ export interface SubmittedReport extends ReportFormData {
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   isSpam?: boolean;
+  evidenceUrl?: string;
+  publicMessage?: string;
 }
-
 // Generate tracking code in format DFOC-XXXXXX
 function generateTrackingCode(): string {
   const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -100,37 +101,53 @@ export async function submitReport(
 
 export async function getReportByTrackingCode(
   trackingCode: string
-): Promise<{ success: boolean; report?: SubmittedReport | null; error?: string }> {
+): Promise<{
+  success: boolean;
+  report?: SubmittedReport | null;
+  error?: string;
+}> {
   try {
-    const db = getDb();
-    const normalizedCode = trackingCode.trim().toUpperCase();
-    const reportsQuery = query(
-      collection(db, "reports"),
-      where("trackingCode", "==", normalizedCode)
+    const response = await fetch(
+      "/api/track",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          trackingCode,
+        }),
+      }
     );
-    const snapshot = await getDocs(reportsQuery);
 
-    if (snapshot.empty) {
+    const data =
+      await response.json();
+
+    if (!response.ok) {
       return {
-        success: true,
-        report: null,
+        success: false,
+        error:
+          data.error ||
+          "Unable to search report",
       };
     }
 
-    const reportData = snapshot.docs[0].data() as SubmittedReport;
-
     return {
       success: true,
-      report: reportData,
+      report:
+        data.report || null,
     };
   } catch (error) {
-    console.error("Error looking up report:", error);
+    console.error(
+      "Track report error:",
+      error
+    );
+
     return {
       success: false,
       error:
-        error instanceof Error
-          ? error.message
-          : "Unable to search for report. Please try again.",
+        "Unable to search report",
     };
   }
 }
@@ -213,6 +230,33 @@ export async function deleteReport(
         error instanceof Error
           ? error.message
           : "Unable to delete report. Please try again.",
+    };
+  }
+}
+
+export async function updatePublicMessage(
+  id: string,
+  publicMessage: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const db = getDb();
+    const reportRef = doc(db, "reports", id);
+
+    await updateDoc(reportRef, {
+      publicMessage,
+      updatedAt: Timestamp.now(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating public message:", error);
+
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to update public message.",
     };
   }
 }

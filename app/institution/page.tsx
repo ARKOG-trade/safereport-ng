@@ -1,5 +1,10 @@
+import InstitutionAuthGuard from "@/app/institution/InstitutionAuthGuard";
 import InstitutionDashboardClient from "@/app/institution/InstitutionDashboardClient";
 
 export default function InstitutionDashboardPage() {
-  return <InstitutionDashboardClient />;
+  return (
+    <InstitutionAuthGuard>
+      <InstitutionDashboardClient />
+    </InstitutionAuthGuard>
+  );
 }

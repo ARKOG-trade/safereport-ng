@@ -31,9 +31,15 @@ export default function InstitutionLoginPage() {
       } else {
         setError("Unauthorized institution account");
       }
-    } catch {
-      setError("Invalid login credentials");
-    }
+    } catch (error) {
+  console.error("LOGIN ERROR:", error);
+
+  alert(
+    JSON.stringify(error, null, 2)
+  );
+
+  setError("Invalid login credentials");
+}
   }
 
   return (

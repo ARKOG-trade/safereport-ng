@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
@@ -10,6 +13,7 @@ import {
   updateReportInstitution,
   markReportAsSpam,
   deleteReport,
+  updatePublicMessage,
 } from "@/lib/reportService";
 import { formatDate } from "@/lib/dateUtils";
 
@@ -23,7 +27,13 @@ interface ReportRow extends SubmittedReport {
   id: string;
 }
 
-export default function AdminDashboardClient() {
+export default function AdminDashboardClient() 
+{
+ const router = useRouter();
+async function handleLogout() {
+  await signOut(auth);
+  router.push("/login/admin");
+}
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [searchText, setSearchText] = useState("");
   const [selectedInstitution, setSelectedInstitution] = useState("All");
@@ -32,6 +42,7 @@ export default function AdminDashboardClient() {
   const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null);
   const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [publicMessage, setPublicMessage] = useState("");
 
   useEffect(() => {
     const db = getDb();
@@ -92,9 +103,23 @@ export default function AdminDashboardClient() {
     ? selectedReport.updatedAt || selectedReport.createdAt
     : null;
 
+     const handleSaveMessage = async () => {
+  if (!selectedReport) return;
+   const result = await updatePublicMessage(
+    selectedReport.id,
+    publicMessage
+  );
+   if (!result.success) {
+    alert(result.error);
+    return;
+  }
+    alert("Public update saved.");
+};
+
   const handleStatusChange = async (reportId: string, newStatus: string) => {
     setIsUpdatingId(reportId);
     setError(null);
+   
 
     const result = await updateReportStatus(reportId, newStatus);
     if (!result.success) {
@@ -141,12 +166,18 @@ export default function AdminDashboardClient() {
 
     setIsUpdatingId(null);
   };
+  useEffect(() => {
+  if (selectedReport) {
+    setPublicMessage(selectedReport.publicMessage || "");
+  }
+}, [selectedReport]);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
       <main className="mx-auto max-w-7xl px-6 py-10 sm:px-8 lg:px-12 lg:py-14">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
+            </div>
             <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">SafeReport NG</p>
             <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">
               Admin Dashboard
@@ -154,14 +185,22 @@ export default function AdminDashboardClient() {
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
               Manage reports in real time, search by tracking code, review details, reassign institutions, and mark spam.
             </p>
-          </div>
-          <Link
-            href="/"
-            className="inline-flex w-full items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm shadow-slate-200 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700/70 dark:bg-slate-900/90 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-auto"
-          >
-            ← Return to homepage
-          </Link>
-        </div>
+            </div>
+         <div className="flex gap-3">
+  <Link
+    href="/"
+    className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900"
+  >
+    ← Return to homepage
+  </Link>
+
+  <button
+    onClick={handleLogout}
+    className="rounded-full bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-700"
+  >
+    Logout
+  </button> 
+  </div>
 
         <section className="space-y-8">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -350,6 +389,36 @@ export default function AdminDashboardClient() {
                       <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Description</p>
                       <p className="mt-2 text-slate-900 dark:text-slate-100">{selectedReport.description}</p>
                     </div>
+                    <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900">
+  <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+    Public Update Message
+  </p>
+
+  <textarea
+    value={publicMessage}
+    onChange={(e) => setPublicMessage(e.target.value)}
+    rows={5}
+    placeholder="Type an update visible to the reporter..."
+    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+  />
+
+  <button
+    type="button"
+    onClick={handleSaveMessage}
+    className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700"
+  >
+    Save Public Update
+  </button>
+
+  {selectedReport.publicMessage && (
+    <div className="rounded-2xl bg-white p-3 dark:bg-slate-950">
+      <p className="text-sm font-semibold mb-2">
+        Current Public Message:
+      </p>
+      <p>{selectedReport.publicMessage}</p>
+    </div>
+  )}
+</div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <p className="text-sm uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Name</p>
