@@ -8,7 +8,11 @@ const institutionMap: Record<string, string> = {
   fire: "Fire Service",
   cybercrime: "Cybercrime Unit",
 };
-export default async function InstitutionSpecificPage({ params }: { params: { institution: string } }) {
+export default async function InstitutionSpecificPage({
+  params,
+}: {
+  params: Promise<{ institution: string }>;
+}) {
   const resolvedParams = await params;
   const institutionKey = String(resolvedParams.institution).toLowerCase();
   const institutionName = institutionMap[institutionKey];

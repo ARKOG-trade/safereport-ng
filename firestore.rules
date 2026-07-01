@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is an admin
+    function isAdmin() {
+      return request.auth != null && 
+        (request.auth.token.email.upperCase() == 'ADMIN@SAFEREPORT.NG');
+    }
+
+    // Helper function to check if user belongs to a specific institution
+    function isInstitution(institutionName) {
+      let email = request.auth.token.email.lowerCase();
+      return request.auth != null && (
+        (institutionName == 'Police' && email == 'police@safereport.ng') ||
+        (institutionName == 'Hospital' && email == 'hospital@safereport.ng') ||
+        (institutionName == 'Fire Service' && email == 'fire@safereport.ng') ||
+        (institutionName == 'Cybercrime Unit' && email == 'cyber@safe')
+      );
+    }
+
+    match /reports/{reportId} {
+      // Anyone can submit a report
+      allow create: if true;
+      
+      // Only admins can read all reports
+      // Institutions can read reports assigned to them
+      allow read: if isAdmin() || (request.auth != null && isInstitution(resource.data.institution));
+      
+      // Only admins can update any field
+      // Institutions can update status and publicMessage for their reports
+      allow update: if isAdmin() || (
+        request.auth != null && 
+        isInstitution(resource.data.institution) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'publicMessage', 'updatedAt'])
+      );
+      
+      // Only admins can delete reports
+      allow delete: if isAdmin();
+    }
+  }
+}

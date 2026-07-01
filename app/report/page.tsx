@@ -15,12 +15,12 @@ const categories = [
 const priorities = ["Low", "Medium", "High", "Critical"];
 
 type ReportPageProps = {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 export default function ReportPage({ searchParams }: ReportPageProps) {
-  const params = use(searchParams);
-  const queryCategory = params.category;
+  const resolvedSearchParams = use(searchParams);
+  const queryCategory = typeof resolvedSearchParams.category === 'string' ? resolvedSearchParams.category : undefined;
   const defaultCategory = categories.includes(queryCategory || "") ? queryCategory! : categories[0];
   
   // Form state
@@ -62,7 +62,7 @@ export default function ReportPage({ searchParams }: ReportPageProps) {
       if (result.success && result.trackingCode) {
         setTrackingCode(result.trackingCode);
         // Reset form
-        setCategory(defaultCategory);
+        setCategory(categories.includes(queryCategory || "") ? queryCategory! : categories[0]);
         setPriority("Medium");
         setDescription("");
         setName("");

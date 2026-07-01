@@ -34,9 +34,7 @@ export default function InstitutionLoginPage() {
     } catch (error) {
   console.error("LOGIN ERROR:", error);
 
-  alert(
-    JSON.stringify(error, null, 2)
-  );
+  // Remove alert for production
 
   setError("Invalid login credentials");
 }

@@ -16,21 +16,14 @@ export default function AdminAuthGuard({
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
-  router.replace("/login/admin");
-  return;
-}
-
-if (user.email !== "admin@safereport.ng") {
-  router.replace("/");
-  return;
-}
-
-setLoading(false);
+        router.replace("/login/admin");
+        return;
+      }
 
       const email = user.email?.toLowerCase();
 
       if (email !== "admin@safereport.ng") {
-        router.replace("/login/admin");
+        router.replace("/");
         return;
       }
 

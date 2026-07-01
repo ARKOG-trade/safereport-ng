@@ -14,7 +14,12 @@ export function initializeFirebase(): Firestore {
     !process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
     !process.env.NEXT_PUBLIC_FIREBASE_APP_ID
   ) {
-    throw new Error("Missing Firebase configuration in environment variables");
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Missing Firebase configuration in environment variables");
+    } else {
+      console.warn("Missing Firebase configuration in environment variables. Firestore will not work correctly.");
+      return {} as Firestore; // Return a mock object for non-production environments
+    }
   }
 
   const firebaseConfig = {

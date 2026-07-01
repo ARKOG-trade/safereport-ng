@@ -3,18 +3,31 @@ import { getFirestore } from "firebase-admin/firestore";
 
 const apps = getApps();
 
-const adminApp =
-  apps.length > 0
-    ? apps[0]
-    : initializeApp({
-        credential: cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(
-            /\\n/g,
-            "\n"
-          ),
-        }),
-      });
+let adminApp;
 
-export const adminDb = getFirestore(adminApp);
+const hasValidAdminCredentials = (
+  process.env.FIREBASE_PROJECT_ID &&
+  process.env.FIREBASE_PROJECT_ID !== "placeholder-project-id" &&
+  process.env.FIREBASE_CLIENT_EMAIL &&
+  process.env.FIREBASE_CLIENT_EMAIL !== "placeholder-client-email@example.com" &&
+  process.env.FIREBASE_PRIVATE_KEY &&
+  !process.env.FIREBASE_PRIVATE_KEY.includes("FAKE_PRIVATE_KEY") &&
+  process.env.FIREBASE_PRIVATE_KEY.startsWith("-----BEGIN PRIVATE KEY-----") &&
+  process.env.FIREBASE_PRIVATE_KEY.endsWith("-----END PRIVATE KEY-----\n")
+);
+
+if (apps.length > 0) {
+  adminApp = apps[0];
+} else if (hasValidAdminCredentials) {
+  adminApp = initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID!,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
+    }),
+  });
+} else {
+  console.warn("Firebase Admin SDK environment variables not found or are placeholders. Admin SDK will not be initialized.");
+}
+
+export const adminDb = adminApp ? getFirestore(adminApp) : ({} as any); // Export a mock object if adminApp is not initialized
