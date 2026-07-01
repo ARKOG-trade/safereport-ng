@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { auth as adminAuth } from "firebase-admin";
 
 export async function POST(req: Request) {
   try {
@@ -12,7 +11,7 @@ export async function POST(req: Request) {
     }
 
     const idToken = authHeader.split("Bearer ")[1];
-    const decodedToken = await adminAuth().verifyIdToken(idToken);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
     const userEmail = decodedToken.email?.toLowerCase();
 
     if (!userEmail) {

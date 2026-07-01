@@ -1,5 +1,6 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 const apps = getApps();
 
@@ -30,4 +31,5 @@ if (apps.length > 0) {
   console.warn("Firebase Admin SDK environment variables not found or are placeholders. Admin SDK will not be initialized.");
 }
 
-export const adminDb = adminApp ? getFirestore(adminApp) : ({} as any); // Export a mock object if adminApp is not initialized
+export const adminDb = adminApp ? getFirestore(adminApp) : ({} as any);
+export const adminAuth = adminApp ? getAuth(adminApp) : ({} as any);
