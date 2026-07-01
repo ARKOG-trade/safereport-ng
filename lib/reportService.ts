@@ -2,14 +2,9 @@ import {
   collection,
   addDoc,
   Timestamp,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  doc,
 } from "firebase/firestore";
 import { getDb } from "./firebase";
+import { auth } from "./auth";
 
 export interface ReportFormData {
   category: string;
@@ -152,23 +147,42 @@ export async function getReportByTrackingCode(
   }
 }
 
+async function callReportApi(action: string, id: string, data?: any) {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("User must be authenticated to perform this action");
+  }
+
+  const idToken = await user.getIdToken();
+
+  const response = await fetch("/api/reports", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ action, id, data }),
+  });
+
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error || `Failed to ${action}`);
+  }
+  return result;
+}
+
 export async function updateReportStatus(
   id: string,
   status: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const db = getDb();
-    const reportRef = doc(db, "reports", id);
-    await updateDoc(reportRef, { status, updatedAt: Timestamp.now() });
+    await callReportApi("updateStatus", id, { status });
     return { success: true };
   } catch (error) {
     console.error("Error updating report status:", error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to update report status. Please try again.",
+      error: error instanceof Error ? error.message : "Unable to update report status.",
     };
   }
 }
@@ -178,18 +192,13 @@ export async function updateReportInstitution(
   institution: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const db = getDb();
-    const reportRef = doc(db, "reports", id);
-    await updateDoc(reportRef, { institution, updatedAt: Timestamp.now() });
+    await callReportApi("updateInstitution", id, { institution });
     return { success: true };
   } catch (error) {
     console.error("Error updating report institution:", error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to update report institution. Please try again.",
+      error: error instanceof Error ? error.message : "Unable to update report institution.",
     };
   }
 }
@@ -198,18 +207,13 @@ export async function markReportAsSpam(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const db = getDb();
-    const reportRef = doc(db, "reports", id);
-    await updateDoc(reportRef, { isSpam: true, status: "Spam", updatedAt: Timestamp.now() });
+    await callReportApi("markAsSpam", id);
     return { success: true };
   } catch (error) {
     console.error("Error marking report as spam:", error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to mark report as spam. Please try again.",
+      error: error instanceof Error ? error.message : "Unable to mark report as spam.",
     };
   }
 }
@@ -218,18 +222,13 @@ export async function deleteReport(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const db = getDb();
-    const reportRef = doc(db, "reports", id);
-    await deleteDoc(reportRef);
+    await callReportApi("delete", id);
     return { success: true };
   } catch (error) {
     console.error("Error deleting report:", error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to delete report. Please try again.",
+      error: error instanceof Error ? error.message : "Unable to delete report.",
     };
   }
 }
@@ -239,24 +238,13 @@ export async function updatePublicMessage(
   publicMessage: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const db = getDb();
-    const reportRef = doc(db, "reports", id);
-
-    await updateDoc(reportRef, {
-      publicMessage,
-      updatedAt: Timestamp.now(),
-    });
-
+    await callReportApi("updatePublicMessage", id, { publicMessage });
     return { success: true };
   } catch (error) {
     console.error("Error updating public message:", error);
-
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to update public message.",
+      error: error instanceof Error ? error.message : "Unable to update public message.",
     };
   }
 }
