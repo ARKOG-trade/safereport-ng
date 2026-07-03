@@ -31,5 +31,5 @@ if (apps.length > 0) {
   console.warn("Firebase Admin SDK environment variables not found or are placeholders. Admin SDK will not be initialized.");
 }
 
-export const adminDb = adminApp ? getFirestore(adminApp) : ({} as any);
-export const adminAuth = adminApp ? getAuth(adminApp) : ({} as any);
+export const adminDb = adminApp ? getFirestore(adminApp) : ({} as unknown as ReturnType<typeof getFirestore>);
+export const adminAuth = adminApp ? getAuth(adminApp) : ({} as unknown as ReturnType<typeof getAuth>);

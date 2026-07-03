@@ -70,14 +70,6 @@ async function handleLogout() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (!selectedReport) return;
-    const updated = reports.find((report) => report.id === selectedReport.id);
-    if (updated) {
-      setSelectedReport(updated);
-    }
-  }, [reports, selectedReport]);
-
   const filteredReports = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
     return reports.filter((report) => {
@@ -166,12 +158,6 @@ async function handleLogout() {
 
     setIsUpdatingId(null);
   };
-  useEffect(() => {
-  if (selectedReport) {
-    setPublicMessage(selectedReport.publicMessage || "");
-  }
-}, [selectedReport]);
-
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
       <main className="mx-auto max-w-7xl px-6 py-10 sm:px-8 lg:px-12 lg:py-14">
@@ -320,7 +306,10 @@ async function handleLogout() {
                           <td className="px-6 py-4">
                             <button
                               type="button"
-                              onClick={() => setSelectedReport(report)}
+                              onClick={() => {
+                                setSelectedReport(report);
+                                setPublicMessage(report.publicMessage || "");
+                              }}
                               className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-50 dark:text-slate-950 dark:hover:bg-slate-100"
                             >
                               View
@@ -343,7 +332,10 @@ async function handleLogout() {
                 {selectedReport && (
                   <button
                     type="button"
-                    onClick={() => setSelectedReport(null)}
+                    onClick={() => {
+                      setSelectedReport(null);
+                      setPublicMessage("");
+                    }}
                     className="rounded-full border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-900"
                   >
                     Clear

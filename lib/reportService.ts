@@ -55,7 +55,7 @@ export async function submitReport(
     const institution = getInstitution(data.category);
 
     // Build report data, filtering out undefined values
-    const reportData: Record<string, any> = {
+    const reportData: Record<string, unknown> = {
       trackingCode,
       category: data.category,
       priority: data.priority,
@@ -76,7 +76,7 @@ export async function submitReport(
     const sanitizedReportData = JSON.parse(JSON.stringify(reportData));
 
     // Add to Firestore 'reports' collection
-    const docRef = await addDoc(collection(db, "reports"), sanitizedReportData);
+    await addDoc(collection(db, "reports"), sanitizedReportData);
 
     return {
       success: true,
@@ -147,7 +147,7 @@ export async function getReportByTrackingCode(
   }
 }
 
-async function callReportApi(action: string, id: string, data?: any) {
+async function callReportApi(action: string, id: string, data?: Record<string, unknown>) {
   const user = auth.currentUser;
   if (!user) {
     throw new Error("User must be authenticated to perform this action");

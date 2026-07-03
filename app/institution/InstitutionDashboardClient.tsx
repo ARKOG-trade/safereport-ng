@@ -16,7 +16,6 @@ import {
 
 import { formatDate } from "@/lib/dateUtils";
 
-const institutionOptions = ["All", "Police", "Hospital", "Fire Service", "Cybercrime Unit", "Admin Review"];
 const statusOptions = ["All", "Submitted", "Received", "In Progress", "Resolved"];
 const priorityOptions = ["All", "Low", "Medium", "High", "Critical"];
 interface ReportRow extends SubmittedReport {
@@ -35,10 +34,7 @@ async function handleLogout() {
   await signOut(auth);
   router.push("/login/institution");
 }
-const [institutionFilter, setInstitutionFilter] =
-  useState<string | null>(
-    routeInstitution || null
-  );
+const institutionFilter = routeInstitution || null;
 
 const [loadingInstitution, setLoadingInstitution] =
   useState(true);
@@ -101,14 +97,15 @@ loadedReports.forEach((r) => {
           loadedReports = loadedReports
             .filter((r) => r.institution === institutionFilter)
             .sort((a, b) => {
-              const aTime = (a.createdAt && (a.createdAt as any).toMillis ? (a.createdAt as any).toMillis() : new Date(a.createdAt as any).getTime()) || 0;
-              const bTime = (b.createdAt && (b.createdAt as any).toMillis ? (b.createdAt as any).toMillis() : new Date(b.createdAt as any).getTime()) || 0;
+              const aTime = a.createdAt && 'toMillis' in a.createdAt && typeof a.createdAt.toMillis === 'function' ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt as unknown as string).getTime() : 0);
+              const bTime = b.createdAt && 'toMillis' in b.createdAt && typeof b.createdAt.toMillis === 'function' ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt as unknown as string).getTime() : 0);
               return bTime - aTime;
             });
         }
         console.log('[InstitutionDashboard] loadedReports', loadedReports);
         setReports(loadedReports);
         setError(null);
+        setLoadingInstitution(false);
       },
       (snapshotError) => {
         console.error("Realtime report subscription failed:", snapshotError);
@@ -118,19 +115,6 @@ loadedReports.forEach((r) => {
 
     return () => unsubscribe();
   }, [institutionFilter]);
-useEffect(() => {
-  if (selectedReport) {
-    setPublicMessage(selectedReport.publicMessage || "");
-  }
-}, [selectedReport]);
-
-useEffect(() => {
-  setLoadingInstitution(false);
-}, []);
-useEffect(() => {
-  setLoadingInstitution(false);
-}, []);
-
 const filteredReports = useMemo(() => {
   return reports.filter((report) => {
     const institutionMatch =
@@ -180,7 +164,6 @@ if (loadingInstitution) {
   };
 
   const institutionLabel = institutionFilter ? institutionFilter : "All institutions";
-  const selectedInstitutionOptions = institutionFilter ? [institutionFilter] : institutionOptions;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
@@ -347,7 +330,10 @@ if (loadingInstitution) {
 
 <td className="px-6 py-4">
   <button
-    onClick={() => setSelectedReport(report)}
+    onClick={() => {
+      setSelectedReport(report);
+      setPublicMessage(report.publicMessage || "");
+    }}
     className="rounded-xl bg-slate-900 px-4 py-2 text-white hover:bg-slate-800"
   >
     View
@@ -368,7 +354,10 @@ if (loadingInstitution) {
       </h2>
 
       <button
-        onClick={() => setSelectedReport(null)}
+        onClick={() => {
+          setSelectedReport(null);
+          setPublicMessage("");
+        }}
         className="rounded-xl border px-4 py-2"
       >
         Close
@@ -378,38 +367,38 @@ if (loadingInstitution) {
     <div className="grid gap-4 sm:grid-cols-2">
       <div>
         <strong>Tracking Code:</strong>
-        <p>{selectedReport.trackingCode}</p>
+        <p>{selectedReport?.trackingCode}</p>
       </div>
 
       <div>
         <strong>Category:</strong>
-        <p>{selectedReport.category}</p>
+        <p>{selectedReport?.category}</p>
       </div>
 
       <div>
         <strong>Institution:</strong>
-        <p>{selectedReport.institution}</p>
+        <p>{selectedReport?.institution}</p>
       </div>
 
       <div>
         <strong>Priority:</strong>
-        <p>{selectedReport.priority}</p>
+        <p>{selectedReport?.priority}</p>
       </div>
 
       <div>
         <strong>Status:</strong>
-        <p>{selectedReport.status}</p>
+        <p>{selectedReport?.status}</p>
       </div>
 
       <div>
         <strong>Date Submitted:</strong>
-        <p>{formatDate(selectedReport.createdAt)}</p>
+        <p>{selectedReport?.createdAt ? formatDate(selectedReport.createdAt) : ""}</p>
       </div>
     </div>
 
     <div className="mt-6">
       <strong>Description:</strong>
-      <p className="mt-2">{selectedReport.description}</p>
+      <p className="mt-2">{selectedReport?.description}</p>
     </div>
     <div className="mt-6">
   <strong>Public Update For Reporter:</strong>
@@ -424,6 +413,7 @@ if (loadingInstitution) {
 
   <button
     onClick={async () => {
+      if (!selectedReport) return;
       const result = await updatePublicMessage(
         selectedReport.id,
         publicMessage
@@ -444,22 +434,22 @@ if (loadingInstitution) {
     <div className="mt-6 grid gap-4 sm:grid-cols-2">
       <div>
         <strong>Name:</strong>
-        <p>{selectedReport.name || "Anonymous"}</p>
+        <p>{selectedReport?.name || "Anonymous"}</p>
       </div>
 
       <div>
         <strong>Phone:</strong>
-        <p>{selectedReport.phone || "Not provided"}</p>
+        <p>{selectedReport?.phone || "Not provided"}</p>
       </div>
 
       <div>
         <strong>Email:</strong>
-        <p>{selectedReport.email || "Not provided"}</p>
+        <p>{selectedReport?.email || "Not provided"}</p>
       </div>
 
       <div>
         <strong>Location:</strong>
-        <p>{selectedReport.location || "Not provided"}</p>
+        <p>{selectedReport?.location || "Not provided"}</p>
       </div>
     </div>
   </div>
