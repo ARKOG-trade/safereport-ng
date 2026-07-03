@@ -29,5 +29,6 @@ These variables are sensitive and are only accessible on the server (e.g., withi
 
 *   **Environment Variables**: When adding `FIREBASE_PRIVATE_KEY` to Vercel, ensure that the newlines (`\n`) are correctly interpreted. Vercel typically handles multi-line secrets correctly if pasted directly. If issues arise, explicitly replace `\n` with `\\n` if Vercel requires a single-line string, though this is rarely necessary for direct pasting.
 *   **Build & Development Settings**: The project uses Next.js, and Vercel automatically detects and configures the build settings. No `vercel.json` file is currently required for basic deployment. If custom build commands or output directories are needed in the future, a `vercel.json` file can be added.
+*   **Dynamic Rendering**: Protected routes like `/admin` and `/institution/[institution]` now use `export const dynamic = "force-dynamic";` to ensure they are rendered dynamically on each request. This prevents Firebase client-side initialization from occurring during static prerendering, resolving previous deployment failures.
 
-This documentation ensures that all necessary environment variables are clearly identified for a successful Vercel deployment of SafeReport NG.
+This documentation ensures that all necessary environment variables are clearly identified and the Vercel deployment configuration is optimized for a successful deployment of SafeReport NG.
