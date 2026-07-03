@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 import InstitutionDashboardClient from "@/app/institution/InstitutionDashboardClient";
 import InstitutionAuthGuard from "@/app/institution/InstitutionAuthGuard";
 
