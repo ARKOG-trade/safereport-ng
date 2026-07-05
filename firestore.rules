@@ -1,41 +1,160 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is an admin
-    function isAdmin() {
-      return request.auth != null && 
-        (request.auth.token.email.upperCase() == 'ADMIN@SAFEREPORT.NG');
+
+    // --- Helper Functions for Roles and Hierarchy ---
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Helper function to check if user belongs to a specific institution
-    function isInstitution(institutionName) {
-      let email = request.auth.token.email.lowerCase();
+    function isSuperAdmin() {
+      // Super Admin is identified by a specific email, existing outside the institutional hierarchy
+      return isAuthenticated() && request.auth.token.email == 'admin@safereport.ng';
+    }
+
+    function getOrgData(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)).data;
+    }
+
+    function getBranchData(branchId) {
+      return get(/databases/$(database)/documents/branches/$(branchId)).data;
+    }
+
+    function getUnitData(unitId) {
+      return get(/databases/$(database)/documents/units/$(unitId)).data;
+    }
+
+    function isOrgAdmin(orgId) {
+      return isAuthenticated() && getOrgData(orgId).adminUid == request.auth.uid;
+    }
+
+    function isBranchAdmin(branchId) {
+      return isAuthenticated() && getBranchData(branchId).branchAdminUid == request.auth.uid;
+    }
+
+    function isUnitAdmin(unitId) {
+      return isAuthenticated() && getUnitData(unitId).unitAdminUid == request.auth.uid;
+    }
+
+    function isUnitMember(unitId) {
+      return isAuthenticated() && request.auth.uid in getUnitData(unitId).members;
+    }
+
+    function hasRole(unitId, role) {
+      return isAuthenticated() && request.auth.uid in getUnitData(unitId).roles && getUnitData(unitId).roles[request.auth.uid].hasAny([role]);
+    }
+
+    // --- Legacy Helper Functions (for backward compatibility) ---
+
+    function isLegacyAdmin() {
+      return request.auth != null && 
+        (request.auth.token.email.lower() == 'admin@safereport.ng');
+    }
+
+    function isLegacyInstitution(institutionName) {
+      let email = request.auth.token.email.lower();
       return request.auth != null && (
         (institutionName == 'Police' && email == 'police@safereport.ng') ||
         (institutionName == 'Hospital' && email == 'hospital@safereport.ng') ||
         (institutionName == 'Fire Service' && email == 'fire@safereport.ng') ||
-        (institutionName == 'Cybercrime Unit' && email == 'cyber@safe')
+        (institutionName == 'Cybercrime Unit' && email == 'cyber@safereport.ng')
       );
     }
 
+    // --- Collection Rules ---
+
+    // Organizations Collection Rules
+    match /organizations/{orgId} {
+      allow create: if isSuperAdmin();
+      allow read: if isSuperAdmin() || isOrgAdmin(orgId);
+      allow update: if isSuperAdmin() || isOrgAdmin(orgId);
+      allow delete: if isSuperAdmin();
+    }
+
+    // Branches Collection Rules
+    match /branches/{branchId} {
+      allow create: if isSuperAdmin() || isOrgAdmin(request.resource.data.organizationId);
+      allow read: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(branchId)));
+      allow update: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(branchId)));
+      allow delete: if isSuperAdmin();
+    }
+
+    // Units Collection Rules
+    match /units/{unitId} {
+      allow create: if isSuperAdmin() || isOrgAdmin(request.resource.data.organizationId) || isBranchAdmin(request.resource.data.branchId);
+      allow read: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(resource.data.branchId) || isUnitAdmin(unitId) || isUnitMember(unitId)));
+      allow update: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(resource.data.branchId) || isUnitAdmin(unitId)));
+      allow delete: if isSuperAdmin();
+    }
+
+    // Reports Collection Rules (Enhanced with new hierarchy, maintaining backward compatibility)
     match /reports/{reportId} {
-      // Anyone can submit a report
-      allow create: if true;
-      
-      // Only admins can read all reports
-      // Institutions can read reports assigned to them
-      allow read: if isAdmin() || (request.auth != null && isInstitution(resource.data.institution));
-      
-      // Only admins can update any field
-      // Institutions can update status and publicMessage for their reports
-      allow update: if isAdmin() || (
-        request.auth != null && 
-        isInstitution(resource.data.institution) && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'publicMessage', 'updatedAt'])
-      );
-      
-      // Only admins can delete reports
-      allow delete: if isAdmin();
+      // Public users can create reports anonymously with unassigned status
+      allow create: if request.auth == null &&
+                       request.resource.data.status == 'unassigned' &&
+                       request.resource.data.organizationId == null &&
+                       request.resource.data.branchId == null &&
+                       request.resource.data.unitId == null;
+
+      // Read permissions based on roles and hierarchy (new system)
+      allow read: if isSuperAdmin() ||
+                  // Org Admin can view all reports in their organization
+                  (resource.data.organizationId != null && isOrgAdmin(resource.data.organizationId)) ||
+                  // Branch Admin can view all reports in their branch
+                  (resource.data.branchId != null && isBranchAdmin(resource.data.branchId)) ||
+                  // Unit Admin/Dispatcher/Officer can view reports assigned to their unit
+                  (resource.data.unitId != null && (isUnitAdmin(resource.data.unitId) || isUnitMember(resource.data.unitId))) ||
+                  // BACKWARD COMPATIBILITY: Legacy institution access
+                  (isLegacyAdmin()) ||
+                  (request.auth != null && isLegacyInstitution(resource.data.institution));
+
+      // Update permissions based on roles and hierarchy
+      allow update: if isSuperAdmin() ||
+                      // Org Admin can assign reports within their organization
+                      (resource.data.organizationId != null && isOrgAdmin(resource.data.organizationId) && request.resource.data.organizationId == resource.data.organizationId) ||
+                      // Branch Admin can assign reports within their branch
+                      (resource.data.branchId != null && isBranchAdmin(resource.data.branchId) && request.resource.data.branchId == resource.data.branchId) ||
+                      // Dispatcher can assign/reassign reports within their unit/branch
+                      (resource.data.unitId != null && hasRole(resource.data.unitId, 'dispatcher')) ||
+                      // Officer can update status/add notes to assigned reports
+                      (resource.data.unitId != null && hasRole(resource.data.unitId, 'officer') && request.resource.data.status != resource.data.status) ||
+                      // BACKWARD COMPATIBILITY: Legacy institution updates
+                      (request.auth != null && 
+                       isLegacyInstitution(resource.data.institution) && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'publicMessage', 'updatedAt']));
+
+      // Only Super Admin can delete reports
+      allow delete: if isSuperAdmin();
+    }
+
+    // Audit Log Collection Rules (Immutable)
+    match /auditLog/{auditId} {
+      allow create: if isAuthenticated();
+      allow read: if isSuperAdmin() ||
+                  // Org Admin can read audit logs for entities in their organization
+                  (request.resource.data.organizationId != null && isOrgAdmin(request.resource.data.organizationId)) ||
+                  // Branch Admin can read audit logs for entities in their branch
+                  (request.resource.data.branchId != null && isBranchAdmin(request.resource.data.branchId)) ||
+                  // Unit Admin/Member can read audit logs for entities in their unit
+                  (request.resource.data.unitId != null && (isUnitAdmin(request.resource.data.unitId) || isUnitMember(request.resource.data.unitId)));
+      allow update, delete: if false;
+    }
+
+    // Notifications Collection Rules
+    match /notifications/{notificationId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId && request.resource.data.keys().hasOnly(['read']);
+      allow delete: if false;
+    }
+
+    // Case Number Counters Collection Rules
+    match /caseNumberCounters/{counterId} {
+      allow create: if isSuperAdmin();
+      allow read: if true;
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
   }
 }

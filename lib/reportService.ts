@@ -18,6 +18,7 @@ export interface ReportFormData {
 
 export interface SubmittedReport extends ReportFormData {
   trackingCode: string;
+  caseNumber?: string;
   institution: string;
   status: string;
   createdAt: Timestamp;
@@ -25,6 +26,10 @@ export interface SubmittedReport extends ReportFormData {
   isSpam?: boolean;
   evidenceUrl?: string;
   publicMessage?: string;
+  organizationId?: string | null;
+  branchId?: string | null;
+  unitId?: string | null;
+  assignedTo?: string;
 }
 // Generate tracking code in format DFOC-XXXXXX
 function generateTrackingCode(): string {
@@ -48,7 +53,7 @@ function getInstitution(category: string): string {
 // Submit report to Firestore
 export async function submitReport(
   data: ReportFormData
-): Promise<{ success: boolean; trackingCode?: string; error?: string }> {
+): Promise<{ success: boolean; trackingCode?: string; caseNumber?: string; error?: string }> {
   try {
     const db = getDb();
     const trackingCode = generateTrackingCode();
@@ -61,9 +66,14 @@ export async function submitReport(
       priority: data.priority,
       description: data.description,
       institution,
-      status: "Submitted",
+      status: "unassigned",
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
+      // New institutional hierarchy fields
+      organizationId: null,
+      branchId: null,
+      unitId: null,
+      assignedTo: "Unassigned",
     };
 
     // Add optional fields only if they have values
@@ -75,12 +85,30 @@ export async function submitReport(
     // Convert to JSON and back to strip any undefined values
     const sanitizedReportData = JSON.parse(JSON.stringify(reportData));
 
+    // Generate case number from server-side API
+    let caseNumber: string | undefined;
+    try {
+      const caseNumberResponse = await fetch('/api/case-number', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (caseNumberResponse.ok) {
+        const caseNumberData = await caseNumberResponse.json();
+        caseNumber = caseNumberData.caseNumber;
+        sanitizedReportData.caseNumber = caseNumber;
+      }
+    } catch (caseNumberError) {
+      console.warn('Failed to generate case number:', caseNumberError);
+      // Continue without case number - it's not critical for backward compatibility
+    }
+
     // Add to Firestore 'reports' collection
     await addDoc(collection(db, "reports"), sanitizedReportData);
 
     return {
       success: true,
       trackingCode,
+      caseNumber,
     };
   } catch (error) {
     console.error("Error submitting report:", error);
