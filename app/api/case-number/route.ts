@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { deriveStateCode, generateCaseNumber } from '@/lib/caseNumberGenerator';
+import { getCaseNumberGenerator } from '@/lib/caseNumberService';
 
 /**
  * POST /api/case-number
@@ -60,47 +60,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const stateCode = deriveStateCode(state);
-    const year = new Date().getFullYear();
-    const counterDocId = `case-number-counter-${year}-${stateCode}`;
-
     try {
-      // Get or create the counter document
-      const counterRef = adminDb.collection('caseNumberCounters').doc(counterDocId);
-      const counterSnap = await counterRef.get();
-
-      let nextSequence: number;
-
-      if (!counterSnap.exists) {
-        // First case number for this state/year
-        nextSequence = 1;
-        await counterRef.set({
-          state: stateCode,
-          year,
-          sequence: 1,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      } else {
-        // Increment the counter
-        const currentSequence = counterSnap.data().sequence || 0;
-        nextSequence = currentSequence + 1;
-        await counterRef.update({
-          sequence: nextSequence,
-          updatedAt: new Date(),
-        });
-      }
-
-      const caseNumber = generateCaseNumber(stateCode, nextSequence);
+      const generator = getCaseNumberGenerator(adminDb);
+      const caseNumber = await generator.generateCaseNumber(state);
 
       return NextResponse.json({
         caseNumber,
         success: true,
       });
-    } catch (firestoreError) {
-      console.error('Firestore error:', firestoreError);
+    } catch (generatorError) {
+      console.error('Case number generation error:', generatorError);
       return NextResponse.json(
-        { error: 'Failed to generate case number from Firestore' },
+        { error: generatorError instanceof Error ? generatorError.message : 'Failed to generate case number' },
         { status: 500 }
       );
     }
@@ -151,47 +122,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const stateCode = deriveStateCode(state);
-    const year = new Date().getFullYear();
-    const counterDocId = `case-number-counter-${year}-${stateCode}`;
-
     try {
-      // Get or create the counter document
-      const counterRef = adminDb.collection('caseNumberCounters').doc(counterDocId);
-      const counterSnap = await counterRef.get();
-
-      let nextSequence: number;
-
-      if (!counterSnap.exists) {
-        // First case number for this state/year
-        nextSequence = 1;
-        await counterRef.set({
-          state: stateCode,
-          year,
-          sequence: 1,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      } else {
-        // Increment the counter
-        const currentSequence = counterSnap.data().sequence || 0;
-        nextSequence = currentSequence + 1;
-        await counterRef.update({
-          sequence: nextSequence,
-          updatedAt: new Date(),
-        });
-      }
-
-      const caseNumber = generateCaseNumber(stateCode, nextSequence);
+      const generator = getCaseNumberGenerator(adminDb);
+      const caseNumber = await generator.generateCaseNumber(state);
 
       return NextResponse.json({
         caseNumber,
         success: true,
       });
-    } catch (firestoreError) {
-      console.error('Firestore error:', firestoreError);
+    } catch (generatorError) {
+      console.error('Case number generation error:', generatorError);
       return NextResponse.json(
-        { error: 'Failed to generate case number from Firestore' },
+        { error: generatorError instanceof Error ? generatorError.message : 'Failed to generate case number' },
         { status: 500 }
       );
     }
