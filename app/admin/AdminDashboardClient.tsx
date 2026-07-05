@@ -165,9 +165,17 @@ async function handleLogout() {
           <div>
             </div>
             <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">SafeReport NG</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">
-              Admin Dashboard
-            </h1>
+<div className="flex items-center justify-between">
+	              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-5xl">
+	                Admin Dashboard
+	              </h1>
+	              <Link
+	                href="/admin/onboarding"
+	                className="mt-3 rounded-full bg-slate-900 px-6 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+	              >
+	                Manage Institutions →
+	              </Link>
+	            </div>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
               Manage reports in real time, search by tracking code, review details, reassign institutions, and mark spam.
             </p>

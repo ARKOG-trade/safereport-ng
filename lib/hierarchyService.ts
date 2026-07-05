@@ -31,6 +31,11 @@ export interface Organization {
   country: string;
   state: string;
   city: string;
+  address: string;
+  phoneNumber: string;
+  officialEmail: string;
+  website?: string;
+  logoUrl?: string;
   active: boolean;
   deletedAt: Timestamp | null;
   deletedBy: string | null;
@@ -42,6 +47,10 @@ export interface Branch {
   id: string;
   organizationId: string;
   name: string;
+  address: string;
+  state: string;
+  city: string;
+  contactNumber: string;
   branchAdminUid: string;
   active: boolean;
   deletedAt: Timestamp | null;
