@@ -1,8 +1,9 @@
 /**
- * SLA Engine Architecture
+ * Generalized SLA Engine Architecture
  * 
- * Manages Service Level Agreements for reports.
- * Tracks SLA compliance, breaches, and clearances.
+ * Manages Service Level Agreements for reports with support for arbitrary SLA stages.
+ * Organizations can define custom stages (e.g., response, investigation, resolution, appeal).
+ * Tracks SLA compliance, breaches, and clearances per stage.
  * Configuration-driven to support different SLA policies per organization/unit.
  */
 
@@ -11,7 +12,18 @@ import { Timestamp, Firestore, doc, getDoc, updateDoc, setDoc, collection, query
 import { DomainEventPublisher, EventType, createDomainEvent } from '@/lib/domainEvents';
 
 /**
- * SLA Policy Configuration
+ * SLA Stage Definition
+ */
+export interface SLAStage {
+  id: string;
+  name: string; // e.g., "response", "investigation", "resolution"
+  description: string;
+  durationMinutes: number;
+  order: number; // Sequence in the SLA workflow
+}
+
+/**
+ * SLA Policy Configuration with arbitrary stages
  */
 export interface SLAPolicy {
   id: string;
@@ -19,10 +31,8 @@ export interface SLAPolicy {
   organizationId: string;
   branchId?: string;
   unitId?: string;
-  // Response time: Time to assign the report
-  responseTimeMinutes: number;
-  // Resolution time: Time to resolve the report
-  resolutionTimeMinutes: number;
+  // Custom stages defined by the organization
+  stages: SLAStage[];
   // Priority-based overrides
   priorityMultipliers: {
     low: number; // 1.5x
@@ -41,31 +51,27 @@ export interface SLAPolicy {
 }
 
 /**
- * SLA Tracker for a Report
+ * SLA Stage Tracker for a Report
  */
-export interface SLATracker {
+export interface SLAStageTracker {
   reportId: string;
+  stageId: string;
+  stageName: string;
   policyId: string;
   organizationId: string;
   branchId?: string;
   unitId?: string;
   // Timestamps
-  submittedAt: Timestamp;
-  assignedAt?: Timestamp;
-  resolvedAt?: Timestamp;
-  // SLA targets
-  responseDeadline: Timestamp;
-  resolutionDeadline: Timestamp;
+  startedAt: Timestamp;
+  deadline: Timestamp;
+  completedAt?: Timestamp;
   // Breach tracking
-  responseBreached: boolean;
-  responseBreachedAt?: Timestamp;
-  resolutionBreached: boolean;
-  resolutionBreachedAt?: Timestamp;
+  breached: boolean;
+  breachedAt?: Timestamp;
   // Clearance tracking
-  responseCleared: boolean;
-  resolutionCleared: boolean;
+  cleared: boolean;
   // Current status
-  status: 'pending' | 'breached' | 'cleared' | 'resolved';
+  status: 'pending' | 'breached' | 'cleared' | 'completed';
   updatedAt: Timestamp;
 }
 
@@ -77,12 +83,11 @@ function isFirestoreInitialized(db: Firestore | Record<string, unknown>): db is 
 }
 
 /**
- * Create a default SLA policy for an organization
+ * Create a default SLA policy with standard stages
  */
 export async function createDefaultSLAPolicy(
   organizationId: string,
-  responseTimeMinutes: number = 60,
-  resolutionTimeMinutes: number = 1440 // 24 hours
+  customStages?: SLAStage[]
 ): Promise<string> {
   try {
     const db = getDb();
@@ -90,14 +95,38 @@ export async function createDefaultSLAPolicy(
       throw new Error('Firestore not initialized');
     }
 
+    // Default stages if not provided
+    const stages = customStages || [
+      {
+        id: 'response',
+        name: 'Response',
+        description: 'Time to assign the report',
+        durationMinutes: 60,
+        order: 1,
+      },
+      {
+        id: 'investigation',
+        name: 'Investigation',
+        description: 'Time to investigate the report',
+        durationMinutes: 1440, // 24 hours
+        order: 2,
+      },
+      {
+        id: 'resolution',
+        name: 'Resolution',
+        description: 'Time to resolve the report',
+        durationMinutes: 2880, // 48 hours
+        order: 3,
+      },
+    ];
+
     const policyRef = doc(collection(db, 'slaPolicies'));
     const now = Timestamp.now();
 
     const policy: Omit<SLAPolicy, 'id'> = {
       name: `Default SLA Policy - ${organizationId}`,
       organizationId,
-      responseTimeMinutes,
-      resolutionTimeMinutes,
+      stages,
       priorityMultipliers: {
         low: 1.5,
         medium: 1.0,
@@ -153,7 +182,7 @@ export async function getSLAPolicy(unitId: string): Promise<SLAPolicy | null> {
 }
 
 /**
- * Initialize SLA tracking for a report
+ * Initialize SLA tracking for a report with first stage
  */
 export async function initializeSLATracking(
   reportId: string,
@@ -170,41 +199,36 @@ export async function initializeSLATracking(
 
     // Get SLA policy
     const policy = await getSLAPolicy(unitId);
-    if (!policy) {
-      console.warn('No SLA policy found for unit:', unitId);
+    if (!policy || policy.stages.length === 0) {
+      console.warn('No SLA policy or stages found for unit:', unitId);
       return false;
     }
 
-    // Calculate deadlines with priority multiplier
+    // Start with the first stage
+    const firstStage = policy.stages[0];
     const multiplier = policy.priorityMultipliers[priority] || 1.0;
     const now = Timestamp.now();
-    const responseDeadlineSeconds = Math.floor(policy.responseTimeMinutes * 60 * multiplier);
-    const resolutionDeadlineSeconds = Math.floor(policy.resolutionTimeMinutes * 60 * multiplier);
+    const durationSeconds = Math.floor(firstStage.durationMinutes * 60 * multiplier);
 
-    const responseDeadline = new Timestamp(
-      now.seconds + responseDeadlineSeconds,
-      now.nanoseconds
-    );
-    const resolutionDeadline = new Timestamp(
-      now.seconds + resolutionDeadlineSeconds,
+    const deadline = new Timestamp(
+      now.seconds + durationSeconds,
       now.nanoseconds
     );
 
-    // Create SLA tracker
-    const trackerRef = doc(db, 'slaTrackers', reportId);
-    const tracker: SLATracker = {
+    // Create SLA stage tracker
+    const trackerRef = doc(db, 'slaStageTrackers', `${reportId}_${firstStage.id}`);
+    const tracker: SLAStageTracker = {
       reportId,
+      stageId: firstStage.id,
+      stageName: firstStage.name,
       policyId: policy.id,
       organizationId,
       branchId,
       unitId,
-      submittedAt: now,
-      responseDeadline,
-      resolutionDeadline,
-      responseBreached: false,
-      resolutionBreached: false,
-      responseCleared: false,
-      resolutionCleared: false,
+      startedAt: now,
+      deadline,
+      breached: false,
+      cleared: false,
       status: 'pending',
       updatedAt: now,
     };
@@ -218,95 +242,140 @@ export async function initializeSLATracking(
 }
 
 /**
- * Update SLA tracker when report is assigned
+ * Advance to the next SLA stage
  */
-export async function updateSLAOnAssignment(reportId: string, dispatcherUid: string): Promise<boolean> {
+export async function advanceToNextStage(
+  reportId: string,
+  currentStageId: string,
+  dispatcherUid: string
+): Promise<boolean> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
       throw new Error('Firestore not initialized');
     }
 
-    const trackerRef = doc(db, 'slaTrackers', reportId);
-    const trackerDoc = await getDoc(trackerRef);
+    // Get current stage tracker
+    const currentTrackerRef = doc(db, 'slaStageTrackers', `${reportId}_${currentStageId}`);
+    const currentTrackerDoc = await getDoc(currentTrackerRef);
 
-    if (!trackerDoc.exists()) {
+    if (!currentTrackerDoc.exists()) {
       return false;
     }
 
-    const tracker = trackerDoc.data() as SLATracker;
+    const currentTracker = currentTrackerDoc.data() as SLAStageTracker;
     const now = Timestamp.now();
 
-    // Check if response deadline has been breached
-    const responseBreached = now.toDate() > tracker.responseDeadline.toDate();
-
-    await updateDoc(trackerRef, {
-      assignedAt: now,
-      responseBreached,
-      responseBreachedAt: responseBreached ? now : tracker.responseBreachedAt,
-      status: responseBreached ? 'breached' : tracker.status,
+    // Mark current stage as completed
+    await updateDoc(currentTrackerRef, {
+      completedAt: now,
+      status: 'completed',
       updatedAt: now,
     });
 
-    // Publish event if breached
-    if (responseBreached && !tracker.responseBreached) {
-      const eventPublisher = DomainEventPublisher.getInstance();
-      const event = createDomainEvent(
-        EventType.SLA_BREACHED,
-        dispatcherUid,
-        reportId,
-        tracker.organizationId,
-        {
-          breachType: 'response',
-          deadline: tracker.responseDeadline,
-        },
-        tracker.branchId,
-        tracker.unitId
-      );
-      await eventPublisher.publish(event);
+    // Get SLA policy to find next stage
+    if (!currentTracker.unitId) {
+      return false;
     }
+    const policy = await getSLAPolicy(currentTracker.unitId);
+    if (!policy) {
+      return false;
+    }
+
+    const currentStageIndex = policy.stages.findIndex(s => s.id === currentStageId);
+    if (currentStageIndex === -1 || currentStageIndex >= policy.stages.length - 1) {
+      return false; // No next stage
+    }
+
+    const nextStage = policy.stages[currentStageIndex + 1];
+    const multiplier = policy.priorityMultipliers.medium || 1.0; // Default to medium
+    const durationSeconds = Math.floor(nextStage.durationMinutes * 60 * multiplier);
+
+    const deadline = new Timestamp(
+      now.seconds + durationSeconds,
+      now.nanoseconds
+    );
+
+    // Create tracker for next stage
+    const nextTrackerRef = doc(db, 'slaStageTrackers', `${reportId}_${nextStage.id}`);
+    const nextTracker: SLAStageTracker = {
+      reportId,
+      stageId: nextStage.id,
+      stageName: nextStage.name,
+      policyId: policy.id,
+      organizationId: currentTracker.organizationId,
+      branchId: currentTracker.branchId,
+      unitId: currentTracker.unitId,
+      startedAt: now,
+      deadline,
+      breached: false,
+      cleared: false,
+      status: 'pending',
+      updatedAt: now,
+    };
+
+    await setDoc(nextTrackerRef, nextTracker);
+
+    // Publish event
+    const eventPublisher = DomainEventPublisher.getInstance();
+    const event = createDomainEvent(
+      EventType.REPORT_STATUS_CHANGED,
+      dispatcherUid,
+      reportId,
+      currentTracker.organizationId,
+      {
+        fromStatus: currentTracker.stageName,
+        toStatus: nextStage.name,
+      },
+      currentTracker.branchId,
+      currentTracker.unitId
+    );
+    await eventPublisher.publish(event);
 
     return true;
   } catch (error) {
-    console.error('Error updating SLA on assignment:', error);
+    console.error('Error advancing to next stage:', error);
     return false;
   }
 }
 
 /**
- * Update SLA tracker when report is resolved
+ * Check and update SLA stage status
  */
-export async function updateSLAOnResolution(reportId: string, dispatcherUid: string): Promise<boolean> {
+export async function checkSLAStageStatus(
+  reportId: string,
+  stageId: string,
+  dispatcherUid: string
+): Promise<'pending' | 'breached' | 'cleared'> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
       throw new Error('Firestore not initialized');
     }
 
-    const trackerRef = doc(db, 'slaTrackers', reportId);
+    const trackerRef = doc(db, 'slaStageTrackers', `${reportId}_${stageId}`);
     const trackerDoc = await getDoc(trackerRef);
 
     if (!trackerDoc.exists()) {
-      return false;
+      return 'pending';
     }
 
-    const tracker = trackerDoc.data() as SLATracker;
+    const tracker = trackerDoc.data() as SLAStageTracker;
     const now = Timestamp.now();
 
-    // Check if resolution deadline has been breached
-    const resolutionBreached = now.toDate() > tracker.resolutionDeadline.toDate();
+    // Check if deadline has been breached
+    const breached = now.toDate() > tracker.deadline.toDate();
 
-    await updateDoc(trackerRef, {
-      resolvedAt: now,
-      resolutionBreached,
-      resolutionBreachedAt: resolutionBreached ? now : tracker.resolutionBreachedAt,
-      resolutionCleared: !resolutionBreached,
-      status: resolutionBreached ? 'breached' : 'resolved',
-      updatedAt: now,
-    });
+    if (breached && !tracker.breached) {
+      // Stage has been breached
+      await updateDoc(trackerRef, {
+        breached: true,
+        breachedAt: now,
+        status: 'breached',
+        updatedAt: now,
+      });
 
-    // Publish event
-    if (resolutionBreached && !tracker.resolutionBreached) {
+      // Publish event
       const eventPublisher = DomainEventPublisher.getInstance();
       const event = createDomainEvent(
         EventType.SLA_BREACHED,
@@ -314,14 +383,27 @@ export async function updateSLAOnResolution(reportId: string, dispatcherUid: str
         reportId,
         tracker.organizationId,
         {
-          breachType: 'resolution',
-          deadline: tracker.resolutionDeadline,
+          breachType: 'stage',
+          stageName: tracker.stageName,
+          deadline: tracker.deadline,
         },
         tracker.branchId,
         tracker.unitId
       );
       await eventPublisher.publish(event);
-    } else if (!resolutionBreached && tracker.resolutionCleared) {
+
+      return 'breached';
+    }
+
+    if (!breached && !tracker.cleared) {
+      // Stage is cleared
+      await updateDoc(trackerRef, {
+        cleared: true,
+        status: 'cleared',
+        updatedAt: now,
+      });
+
+      // Publish event
       const eventPublisher = DomainEventPublisher.getInstance();
       const event = createDomainEvent(
         EventType.SLA_CLEARED,
@@ -329,18 +411,21 @@ export async function updateSLAOnResolution(reportId: string, dispatcherUid: str
         reportId,
         tracker.organizationId,
         {
-          clearedType: 'resolution',
+          clearedType: 'stage',
+          stageName: tracker.stageName,
         },
         tracker.branchId,
         tracker.unitId
       );
       await eventPublisher.publish(event);
+
+      return 'cleared';
     }
 
-    return true;
+    return tracker.status as 'pending' | 'breached' | 'cleared';
   } catch (error) {
-    console.error('Error updating SLA on resolution:', error);
-    return false;
+    console.error('Error checking SLA stage status:', error);
+    return 'pending';
   }
 }
 
@@ -349,10 +434,8 @@ export async function updateSLAOnResolution(reportId: string, dispatcherUid: str
  */
 export async function getUnitSLACompliance(unitId: string): Promise<{
   totalReports: number;
-  responseCompliance: number; // Percentage
-  resolutionCompliance: number; // Percentage
-  averageResponseTime: number; // Minutes
-  averageResolutionTime: number; // Minutes
+  stageCompliance: Record<string, { compliant: number; breached: number; percentage: number }>;
+  averageStageDuration: Record<string, number>; // Minutes
 }> {
   try {
     const db = getDb();
@@ -361,71 +444,75 @@ export async function getUnitSLACompliance(unitId: string): Promise<{
     }
 
     const trackersQuery = query(
-      collection(db, 'slaTrackers'),
+      collection(db, 'slaStageTrackers'),
       where('unitId', '==', unitId)
     );
 
     const snapshot = await getDocs(trackersQuery);
-    const trackers = snapshot.docs.map(doc => doc.data() as SLATracker);
+    const trackers = snapshot.docs.map(doc => doc.data() as SLAStageTracker);
 
     if (trackers.length === 0) {
       return {
         totalReports: 0,
-        responseCompliance: 0,
-        resolutionCompliance: 0,
-        averageResponseTime: 0,
-        averageResolutionTime: 0,
+        stageCompliance: {},
+        averageStageDuration: {},
       };
     }
 
-    let responseCompliant = 0;
-    let resolutionCompliant = 0;
-    let totalResponseTime = 0;
-    let totalResolutionTime = 0;
-    let assignedCount = 0;
-    let resolvedCount = 0;
+    const stageCompliance: Record<string, { compliant: number; breached: number; percentage: number }> = {};
+    const stageDurations: Record<string, number[]> = {};
+    const uniqueReports = new Set<string>();
 
     for (const tracker of trackers) {
-      if (!tracker.responseBreached) {
-        responseCompliant++;
+      uniqueReports.add(tracker.reportId);
+
+      if (!stageCompliance[tracker.stageName]) {
+        stageCompliance[tracker.stageName] = { compliant: 0, breached: 0, percentage: 0 };
       }
 
-      if (!tracker.resolutionBreached) {
-        resolutionCompliant++;
+      if (tracker.breached) {
+        stageCompliance[tracker.stageName].breached++;
+      } else {
+        stageCompliance[tracker.stageName].compliant++;
       }
 
-      if (tracker.assignedAt) {
-        const responseTime = Math.floor(
-          (tracker.assignedAt.toDate().getTime() - tracker.submittedAt.toDate().getTime()) / (1000 * 60)
+      if (tracker.completedAt) {
+        const duration = Math.floor(
+          (tracker.completedAt.toDate().getTime() - tracker.startedAt.toDate().getTime()) / (1000 * 60)
         );
-        totalResponseTime += responseTime;
-        assignedCount++;
-      }
 
-      if (tracker.resolvedAt) {
-        const resolutionTime = Math.floor(
-          (tracker.resolvedAt.toDate().getTime() - tracker.submittedAt.toDate().getTime()) / (1000 * 60)
-        );
-        totalResolutionTime += resolutionTime;
-        resolvedCount++;
+        if (!stageDurations[tracker.stageName]) {
+          stageDurations[tracker.stageName] = [];
+        }
+        stageDurations[tracker.stageName].push(duration);
       }
     }
 
+    // Calculate percentages
+    for (const stageName in stageCompliance) {
+      const { compliant, breached } = stageCompliance[stageName];
+      const total = compliant + breached;
+      stageCompliance[stageName].percentage = total > 0 ? Math.round((compliant / total) * 100) : 0;
+    }
+
+    // Calculate average durations
+    const averageStageDuration: Record<string, number> = {};
+    for (const stageName in stageDurations) {
+      const durations = stageDurations[stageName];
+      averageStageDuration[stageName] = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length);
+    }
+
     return {
-      totalReports: trackers.length,
-      responseCompliance: Math.round((responseCompliant / trackers.length) * 100),
-      resolutionCompliance: Math.round((resolutionCompliant / trackers.length) * 100),
-      averageResponseTime: assignedCount > 0 ? Math.round(totalResponseTime / assignedCount) : 0,
-      averageResolutionTime: resolvedCount > 0 ? Math.round(totalResolutionTime / resolvedCount) : 0,
+      totalReports: uniqueReports.size,
+      stageCompliance,
+      averageStageDuration,
     };
   } catch (error) {
     console.error('Error getting SLA compliance:', error);
     return {
       totalReports: 0,
-      responseCompliance: 0,
-      resolutionCompliance: 0,
-      averageResponseTime: 0,
-      averageResolutionTime: 0,
+      stageCompliance: {},
+      averageStageDuration: {},
     };
   }
 }

@@ -3,6 +3,7 @@
  * 
  * Creates and manages immutable timeline entries for every report action.
  * Timeline entries are append-only and never editable or deletable.
+ * Each timeline entry references the previous event, creating a verifiable chain.
  * Provides complete transparency and accountability for every case.
  */
 
@@ -11,8 +12,9 @@ import { Timestamp, Firestore, collection, doc, setDoc, query, where, getDocs, o
 import { DomainEvent, DomainEventPublisher, EventType } from '@/lib/domainEvents';
 
 export interface TimelineEntry {
-  id: string;
+  id: string; // Immutable unique ID (e.g., timeline_reportId_timestamp_hash)
   reportId: string;
+  previousEventId?: string; // Reference to previous event in the chain
   timestamp: Timestamp;
   eventType: string;
   actor: string; // User UID
@@ -24,6 +26,7 @@ export interface TimelineEntry {
   metadata: Record<string, unknown>;
   createdAt: Timestamp; // When this timeline entry was created
   // Immutability: No updateAt or deletedAt fields
+  // Event chain integrity: previousEventId creates verifiable chain
 }
 
 /**
@@ -34,9 +37,45 @@ function isFirestoreInitialized(db: Firestore | Record<string, unknown>): db is 
 }
 
 /**
+ * Generate immutable unique ID for timeline entry
+ */
+function generateTimelineEntryId(reportId: string, timestamp: Timestamp): string {
+  const hash = Math.random().toString(36).substring(2, 8);
+  return `timeline_${reportId}_${timestamp.seconds}_${hash}`;
+}
+
+/**
+ * Get the previous event ID in the timeline chain
+ */
+async function getPreviousEventId(reportId: string): Promise<string | undefined> {
+  try {
+    const db = getDb();
+    if (!isFirestoreInitialized(db)) {
+      return undefined;
+    }
+
+    const timelineQuery = query(
+      collection(db, 'reportTimelines'),
+      where('reportId', '==', reportId),
+      orderBy('timestamp', 'desc')
+    );
+
+    const snapshot = await getDocs(timelineQuery);
+    if (snapshot.docs.length > 0) {
+      return snapshot.docs[0].id;
+    }
+
+    return undefined;
+  } catch (error) {
+    console.error('Error getting previous event ID:', error);
+    return undefined;
+  }
+}
+
+/**
  * Create a timeline entry for a domain event
  */
-export async function createTimelineEntry(event: DomainEvent): Promise<boolean> {
+export async function createTimelineEntry(event: DomainEvent): Promise<string | null> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
@@ -46,10 +85,18 @@ export async function createTimelineEntry(event: DomainEvent): Promise<boolean> 
     // Generate action description based on event type
     const action = generateActionDescription(event);
 
+    // Get the previous event in the chain
+    const previousEventId = await getPreviousEventId(event.reportId);
+
+    // Generate immutable unique ID for this timeline entry
+    const entryId = generateTimelineEntryId(event.reportId, event.timestamp);
+
     // Create timeline entry
-    const timelineRef = doc(collection(db, 'reportTimelines'));
-    const entry: Omit<TimelineEntry, 'id'> = {
+    const timelineRef = doc(db, 'reportTimelines', entryId);
+    const entry: TimelineEntry = {
+      id: entryId,
       reportId: event.reportId,
+      previousEventId,
       timestamp: event.timestamp,
       eventType: event.eventType,
       actor: event.actor,
@@ -62,9 +109,38 @@ export async function createTimelineEntry(event: DomainEvent): Promise<boolean> 
     };
 
     await setDoc(timelineRef, entry);
-    return true;
+    return entryId;
   } catch (error) {
     console.error('Error creating timeline entry:', error);
+    return null;
+  }
+}
+
+/**
+ * Verify event chain integrity
+ */
+export async function verifyEventChainIntegrity(reportId: string): Promise<boolean> {
+  try {
+    const timeline = await getReportTimeline(reportId);
+
+    if (timeline.length <= 1) {
+      return true; // Single or no events, chain is valid
+    }
+
+    // Verify each event references the previous one
+    for (let i = 1; i < timeline.length; i++) {
+      const currentEvent = timeline[i];
+      const previousEvent = timeline[i - 1];
+
+      if (currentEvent.previousEventId !== previousEvent.id) {
+        console.error(`Event chain broken at index ${i}`);
+        return false;
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error verifying event chain:', error);
     return false;
   }
 }
@@ -206,14 +282,17 @@ export async function getTimelineStatistics(reportId: string): Promise<{
   firstEvent?: Timestamp;
   lastEvent?: Timestamp;
   durationMinutes?: number;
+  chainIntegrityValid: boolean;
 }> {
   try {
     const timeline = await getReportTimeline(reportId);
+    const chainValid = await verifyEventChainIntegrity(reportId);
 
     if (timeline.length === 0) {
       return {
         totalEvents: 0,
         eventsByType: {},
+        chainIntegrityValid: true,
       };
     }
 
@@ -234,12 +313,14 @@ export async function getTimelineStatistics(reportId: string): Promise<{
       firstEvent,
       lastEvent,
       durationMinutes,
+      chainIntegrityValid: chainValid,
     };
   } catch (error) {
     console.error('Error getting timeline statistics:', error);
     return {
       totalEvents: 0,
       eventsByType: {},
+      chainIntegrityValid: false,
     };
   }
 }
