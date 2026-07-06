@@ -1,9 +1,10 @@
 /**
- * Assignment Timeline Service
+ * Assignment Timeline Service with Cryptographic Integrity
  * 
  * Creates and manages immutable timeline entries for every report action.
  * Timeline entries are append-only and never editable or deletable.
- * Each timeline entry references the previous event, creating a verifiable chain.
+ * Each timeline entry references the previous event and includes a cryptographic hash.
+ * Hash chain ensures tamper detection: any modification breaks the chain.
  * Provides complete transparency and accountability for every case.
  */
 
@@ -15,6 +16,8 @@ export interface TimelineEntry {
   id: string; // Immutable unique ID (e.g., timeline_reportId_timestamp_hash)
   reportId: string;
   previousEventId?: string; // Reference to previous event in the chain
+  eventHash: string; // SHA-256 hash of this event combined with previous hash
+  previousEventHash?: string; // Hash of the previous event (for verification)
   timestamp: Timestamp;
   eventType: string;
   actor: string; // User UID
@@ -26,7 +29,7 @@ export interface TimelineEntry {
   metadata: Record<string, unknown>;
   createdAt: Timestamp; // When this timeline entry was created
   // Immutability: No updateAt or deletedAt fields
-  // Event chain integrity: previousEventId creates verifiable chain
+  // Event chain integrity: previousEventId and eventHash create verifiable chain
 }
 
 /**
@@ -34,6 +37,38 @@ export interface TimelineEntry {
  */
 function isFirestoreInitialized(db: Firestore | Record<string, unknown>): db is Firestore {
   return db && typeof db === 'object' && 'type' in db;
+}
+
+/**
+ * Simple SHA-256 hash implementation (browser-compatible)
+ * Note: For production, consider using crypto-js or native crypto API
+ */
+async function computeEventHash(eventData: string, previousHash?: string): Promise<string> {
+  try {
+    // Use Web Crypto API if available (modern browsers)
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(eventData + (previousHash || ''));
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Fallback: Simple hash (not cryptographically secure, for development only)
+    // Note: In production, ensure Web Crypto API is available or use a library
+    const str = eventData + (previousHash || '');
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16);
+  } catch (error) {
+    console.error('Error computing event hash:', error);
+    // Return a placeholder hash on error
+    return `hash_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  }
 }
 
 /**
@@ -45,9 +80,9 @@ function generateTimelineEntryId(reportId: string, timestamp: Timestamp): string
 }
 
 /**
- * Get the previous event ID in the timeline chain
+ * Get the previous event in the timeline chain
  */
-async function getPreviousEventId(reportId: string): Promise<string | undefined> {
+async function getPreviousEvent(reportId: string): Promise<TimelineEntry | undefined> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
@@ -62,12 +97,15 @@ async function getPreviousEventId(reportId: string): Promise<string | undefined>
 
     const snapshot = await getDocs(timelineQuery);
     if (snapshot.docs.length > 0) {
-      return snapshot.docs[0].id;
+      return {
+        id: snapshot.docs[0].id,
+        ...snapshot.docs[0].data(),
+      } as TimelineEntry;
     }
 
     return undefined;
   } catch (error) {
-    console.error('Error getting previous event ID:', error);
+    console.error('Error getting previous event:', error);
     return undefined;
   }
 }
@@ -86,17 +124,31 @@ export async function createTimelineEntry(event: DomainEvent): Promise<string | 
     const action = generateActionDescription(event);
 
     // Get the previous event in the chain
-    const previousEventId = await getPreviousEventId(event.reportId);
+    const previousEvent = await getPreviousEvent(event.reportId);
 
     // Generate immutable unique ID for this timeline entry
     const entryId = generateTimelineEntryId(event.reportId, event.timestamp);
+
+    // Compute cryptographic hash for this event
+    const eventDataForHash = JSON.stringify({
+      reportId: event.reportId,
+      eventType: event.eventType,
+      actor: event.actor,
+      timestamp: event.timestamp.seconds,
+      action,
+      metadata: event.metadata,
+    });
+
+    const eventHash = await computeEventHash(eventDataForHash, previousEvent?.eventHash);
 
     // Create timeline entry
     const timelineRef = doc(db, 'reportTimelines', entryId);
     const entry: TimelineEntry = {
       id: entryId,
       reportId: event.reportId,
-      previousEventId,
+      previousEventId: previousEvent?.id,
+      eventHash,
+      previousEventHash: previousEvent?.eventHash,
       timestamp: event.timestamp,
       eventType: event.eventType,
       actor: event.actor,
@@ -117,31 +169,84 @@ export async function createTimelineEntry(event: DomainEvent): Promise<string | 
 }
 
 /**
- * Verify event chain integrity
+ * Verify event chain integrity with cryptographic hashing
  */
-export async function verifyEventChainIntegrity(reportId: string): Promise<boolean> {
+export async function verifyEventChainIntegrity(reportId: string): Promise<{
+  valid: boolean;
+  totalEvents: number;
+  brokenAt?: number;
+  details: string;
+}> {
   try {
     const timeline = await getReportTimeline(reportId);
 
     if (timeline.length <= 1) {
-      return true; // Single or no events, chain is valid
+      return {
+        valid: true,
+        totalEvents: timeline.length,
+        details: 'Chain is valid (0 or 1 events)',
+      };
     }
 
-    // Verify each event references the previous one
+    // Verify each event references the previous one and hashes are correct
     for (let i = 1; i < timeline.length; i++) {
       const currentEvent = timeline[i];
       const previousEvent = timeline[i - 1];
 
+      // Check previousEventId reference
       if (currentEvent.previousEventId !== previousEvent.id) {
-        console.error(`Event chain broken at index ${i}`);
-        return false;
+        return {
+          valid: false,
+          totalEvents: timeline.length,
+          brokenAt: i,
+          details: `Event chain broken at index ${i}: previousEventId mismatch`,
+        };
+      }
+
+      // Check previousEventHash reference
+      if (currentEvent.previousEventHash !== previousEvent.eventHash) {
+        return {
+          valid: false,
+          totalEvents: timeline.length,
+          brokenAt: i,
+          details: `Event chain broken at index ${i}: previousEventHash mismatch (tamper detected)`,
+        };
+      }
+
+      // Recompute hash to verify integrity
+      const eventDataForHash = JSON.stringify({
+        reportId: currentEvent.reportId,
+        eventType: currentEvent.eventType,
+        actor: currentEvent.actor,
+        timestamp: currentEvent.timestamp.seconds,
+        action: currentEvent.action,
+        metadata: currentEvent.metadata,
+      });
+
+      const recomputedHash = await computeEventHash(eventDataForHash, previousEvent.eventHash);
+
+      if (recomputedHash !== currentEvent.eventHash) {
+        return {
+          valid: false,
+          totalEvents: timeline.length,
+          brokenAt: i,
+          details: `Event chain broken at index ${i}: hash mismatch (event modified)`,
+        };
       }
     }
 
-    return true;
+    return {
+      valid: true,
+      totalEvents: timeline.length,
+      details: 'Chain is valid (all events verified)',
+    };
   } catch (error) {
     console.error('Error verifying event chain:', error);
-    return false;
+    return {
+      valid: false,
+      totalEvents: 0,
+      details: `Verification error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
   }
 }
 
@@ -231,12 +336,14 @@ export function formatTimeline(entries: TimelineEntry[]): Array<{
   action: string;
   actor: string;
   details: Record<string, unknown>;
+  eventHash: string;
 }> {
   return entries.map(entry => ({
     time: entry.timestamp.toDate().toLocaleString(),
     action: entry.action,
     actor: entry.actorName || entry.actor,
     details: entry.metadata,
+    eventHash: entry.eventHash,
   }));
 }
 
@@ -283,16 +390,18 @@ export async function getTimelineStatistics(reportId: string): Promise<{
   lastEvent?: Timestamp;
   durationMinutes?: number;
   chainIntegrityValid: boolean;
+  chainIntegrityDetails: string;
 }> {
   try {
     const timeline = await getReportTimeline(reportId);
-    const chainValid = await verifyEventChainIntegrity(reportId);
+    const chainVerification = await verifyEventChainIntegrity(reportId);
 
     if (timeline.length === 0) {
       return {
         totalEvents: 0,
         eventsByType: {},
         chainIntegrityValid: true,
+        chainIntegrityDetails: 'No events to verify',
       };
     }
 
@@ -313,7 +422,8 @@ export async function getTimelineStatistics(reportId: string): Promise<{
       firstEvent,
       lastEvent,
       durationMinutes,
-      chainIntegrityValid: chainValid,
+      chainIntegrityValid: chainVerification.valid,
+      chainIntegrityDetails: chainVerification.details,
     };
   } catch (error) {
     console.error('Error getting timeline statistics:', error);
@@ -321,6 +431,7 @@ export async function getTimelineStatistics(reportId: string): Promise<{
       totalEvents: 0,
       eventsByType: {},
       chainIntegrityValid: false,
+      chainIntegrityDetails: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 }
