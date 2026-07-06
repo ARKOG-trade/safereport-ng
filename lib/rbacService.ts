@@ -3,6 +3,7 @@
  * 
  * Manages role-based access control for the institutional hierarchy.
  * Provides functions for checking user roles, permissions, and hierarchical access.
+ * Supports multiple roles per user for flexible permission management.
  */
 
 import { getDb } from '@/lib/firebase';
@@ -108,71 +109,76 @@ function isFirestoreInitialized(db: Firestore | Record<string, unknown>): db is 
 }
 
 /**
- * Get user's role in a specific unit
+ * Get user's roles in a specific unit (supports multiple roles)
  */
-export async function getUserRoleInUnit(userId: string, unitId: string): Promise<UserRole | null> {
+export async function getUserRolesInUnit(userId: string, unitId: string): Promise<UserRole[]> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
-      return null;
+      return [];
     }
     
     const unitRef = doc(db, 'units', unitId);
     const unitDoc = await getDoc(unitRef);
     
     if (!unitDoc.exists()) {
-      return null;
+      return [];
     }
     
     const unitData = unitDoc.data();
-    if (!unitData) return null;
+    if (!unitData) return [];
+    
+    const userRoles: UserRole[] = [];
     
     // Check if user is unit admin
     if (unitData.unitAdminUid === userId) {
-      return UserRole.UNIT_ADMIN;
+      userRoles.push(UserRole.UNIT_ADMIN);
     }
     
-    // Check if user has a role in the unit
+    // Check if user has roles in the unit (support multiple roles)
     if (unitData.roles && unitData.roles[userId]) {
       const roles = unitData.roles[userId];
-      if (Array.isArray(roles) && roles.length > 0) {
-        // Return the first role (in a real system, you might want to handle multiple roles)
-        const role = roles[0];
-        if (role === 'dispatcher') return UserRole.DISPATCHER;
-        if (role === 'officer') return UserRole.OFFICER;
+      if (Array.isArray(roles)) {
+        for (const role of roles) {
+          if (role === 'dispatcher') userRoles.push(UserRole.DISPATCHER);
+          else if (role === 'officer') userRoles.push(UserRole.OFFICER);
+        }
       }
     }
     
-    return null;
+    return userRoles;
   } catch (error) {
-    console.error('Error getting user role in unit:', error);
-    return null;
+    console.error('Error getting user roles in unit:', error);
+    return [];
   }
 }
 
 /**
- * Get user's role in a specific organization
+ * Get user's roles in a specific organization (supports multiple roles)
  */
-export async function getUserRoleInOrganization(userId: string, organizationId: string): Promise<UserRole | null> {
+export async function getUserRolesInOrganization(userId: string, organizationId: string): Promise<UserRole[]> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
-      return null;
+      return [];
     }
     
     const orgRef = doc(db, 'organizations', organizationId);
     const orgDoc = await getDoc(orgRef);
     
     if (!orgDoc.exists()) {
-      return null;
+      return [];
     }
     
     const orgData = orgDoc.data();
-    if (!orgData) return null;
+    if (!orgData) return [];
+    
+    const userRoles: UserRole[] = [];
     
     // Check if user is org admin
     if (orgData.adminUid === userId) {
-      return UserRole.ORG_ADMIN;
+      userRoles.push(UserRole.ORG_ADMIN);
+      return userRoles; // Org admin has highest priority
     }
     
     // Check if user has a role in any branch or unit of this organization
@@ -185,7 +191,8 @@ export async function getUserRoleInOrganization(userId: string, organizationId: 
     for (const branchDocSnap of branchesSnapshot.docs) {
       const branchData = branchDocSnap.data();
       if (branchData.branchAdminUid === userId) {
-        return UserRole.BRANCH_ADMIN;
+        userRoles.push(UserRole.BRANCH_ADMIN);
+        continue;
       }
       
       // Check units in this branch
@@ -196,22 +203,25 @@ export async function getUserRoleInOrganization(userId: string, organizationId: 
       const unitsSnapshot = await getDocs(unitsQuery);
       
       for (const unitDocSnap of unitsSnapshot.docs) {
-        const unitRole = await getUserRoleInUnit(userId, unitDocSnap.id);
-        if (unitRole) {
-          return unitRole;
+        const unitRoles = await getUserRolesInUnit(userId, unitDocSnap.id);
+        for (const role of unitRoles) {
+          if (!userRoles.includes(role)) {
+            userRoles.push(role);
+          }
         }
       }
     }
     
-    return null;
+    return userRoles;
   } catch (error) {
-    console.error('Error getting user role in organization:', error);
-    return null;
+    console.error('Error getting user roles in organization:', error);
+    return [];
   }
 }
 
 /**
  * Check if user has a specific permission in a unit
+ * Evaluates all user roles and their combined permissions
  */
 export async function hasPermissionInUnit(
   userId: string,
@@ -219,11 +229,18 @@ export async function hasPermissionInUnit(
   permission: Permission
 ): Promise<boolean> {
   try {
-    const userRole = await getUserRoleInUnit(userId, unitId);
-    if (!userRole) return false;
+    const userRoles = await getUserRolesInUnit(userId, unitId);
+    if (userRoles.length === 0) return false;
     
-    const permissions = rolePermissions[userRole];
-    return permissions.includes(permission);
+    // Check if any of the user's roles has the permission
+    for (const role of userRoles) {
+      const permissions = rolePermissions[role];
+      if (permissions.includes(permission)) {
+        return true;
+      }
+    }
+    
+    return false;
   } catch (error) {
     console.error('Error checking permission in unit:', error);
     return false;
@@ -232,6 +249,7 @@ export async function hasPermissionInUnit(
 
 /**
  * Check if user has a specific permission in an organization
+ * Evaluates all user roles and their combined permissions
  */
 export async function hasPermissionInOrganization(
   userId: string,
@@ -239,11 +257,18 @@ export async function hasPermissionInOrganization(
   permission: Permission
 ): Promise<boolean> {
   try {
-    const userRole = await getUserRoleInOrganization(userId, organizationId);
-    if (!userRole) return false;
+    const userRoles = await getUserRolesInOrganization(userId, organizationId);
+    if (userRoles.length === 0) return false;
     
-    const permissions = rolePermissions[userRole];
-    return permissions.includes(permission);
+    // Check if any of the user's roles has the permission
+    for (const role of userRoles) {
+      const permissions = rolePermissions[role];
+      if (permissions.includes(permission)) {
+        return true;
+      }
+    }
+    
+    return false;
   } catch (error) {
     console.error('Error checking permission in organization:', error);
     return false;
@@ -251,9 +276,9 @@ export async function hasPermissionInOrganization(
 }
 
 /**
- * Get all units where user has a specific role
+ * Get all units where user has any role
  */
-export async function getUserUnits(userId: string): Promise<Array<{ unitId: string; role: UserRole }>> {
+export async function getUserUnits(userId: string): Promise<Array<{ unitId: string; roles: UserRole[] }>> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
@@ -266,28 +291,12 @@ export async function getUserUnits(userId: string): Promise<Array<{ unitId: stri
     );
     const unitsSnapshot = await getDocs(unitsQuery);
     
-    const userUnits: Array<{ unitId: string; role: UserRole }> = [];
+    const userUnits: Array<{ unitId: string; roles: UserRole[] }> = [];
     
     for (const unitDocSnap of unitsSnapshot.docs) {
-      const unitData = unitDocSnap.data();
-      
-      // Check if user is unit admin
-      if (unitData.unitAdminUid === userId) {
-        userUnits.push({ unitId: unitDocSnap.id, role: UserRole.UNIT_ADMIN });
-        continue;
-      }
-      
-      // Check if user has a role in the unit
-      if (unitData.roles && unitData.roles[userId]) {
-        const roles = unitData.roles[userId];
-        if (Array.isArray(roles) && roles.length > 0) {
-          const role = roles[0];
-          if (role === 'dispatcher') {
-            userUnits.push({ unitId: unitDocSnap.id, role: UserRole.DISPATCHER });
-          } else if (role === 'officer') {
-            userUnits.push({ unitId: unitDocSnap.id, role: UserRole.OFFICER });
-          }
-        }
+      const roles = await getUserRolesInUnit(userId, unitDocSnap.id);
+      if (roles.length > 0) {
+        userUnits.push({ unitId: unitDocSnap.id, roles });
       }
     }
     
@@ -299,9 +308,9 @@ export async function getUserUnits(userId: string): Promise<Array<{ unitId: stri
 }
 
 /**
- * Get all organizations where user has a specific role
+ * Get all organizations where user has any role
  */
-export async function getUserOrganizations(userId: string): Promise<Array<{ organizationId: string; role: UserRole }>> {
+export async function getUserOrganizations(userId: string): Promise<Array<{ organizationId: string; roles: UserRole[] }>> {
   try {
     const db = getDb();
     if (!isFirestoreInitialized(db)) {
@@ -314,21 +323,12 @@ export async function getUserOrganizations(userId: string): Promise<Array<{ orga
     );
     const orgsSnapshot = await getDocs(orgsQuery);
     
-    const userOrgs: Array<{ organizationId: string; role: UserRole }> = [];
+    const userOrgs: Array<{ organizationId: string; roles: UserRole[] }> = [];
     
     for (const orgDocSnap of orgsSnapshot.docs) {
-      const orgData = orgDocSnap.data();
-      
-      // Check if user is org admin
-      if (orgData.adminUid === userId) {
-        userOrgs.push({ organizationId: orgDocSnap.id, role: UserRole.ORG_ADMIN });
-        continue;
-      }
-      
-      // Check if user has a role in any branch or unit
-      const role = await getUserRoleInOrganization(userId, orgDocSnap.id);
-      if (role) {
-        userOrgs.push({ organizationId: orgDocSnap.id, role });
+      const roles = await getUserRolesInOrganization(userId, orgDocSnap.id);
+      if (roles.length > 0) {
+        userOrgs.push({ organizationId: orgDocSnap.id, roles });
       }
     }
     
@@ -351,4 +351,20 @@ export function isSuperAdmin(user: User | null): boolean {
  */
 export function getPermissionsForRole(role: UserRole): Permission[] {
   return rolePermissions[role] || [];
+}
+
+/**
+ * Get all permissions for a set of roles (union of all permissions)
+ */
+export function getPermissionsForRoles(roles: UserRole[]): Permission[] {
+  const permissions = new Set<Permission>();
+  
+  for (const role of roles) {
+    const rolePerms = rolePermissions[role];
+    for (const perm of rolePerms) {
+      permissions.add(perm);
+    }
+  }
+  
+  return Array.from(permissions);
 }
