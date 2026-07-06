@@ -28,8 +28,16 @@ if (apps.length > 0) {
     }),
   });
 } else {
-  console.warn("Firebase Admin SDK environment variables not found or are placeholders. Admin SDK will not be initialized.");
+  console.warn("Firebase Admin SDK environment variables not found or are placeholders. Admin SDK will not be initialized. Any attempt to use adminDb or adminAuth will throw an error.");
+  adminApp = null; // Explicitly set to null if not initialized
 }
 
-export const adminDb = adminApp ? getFirestore(adminApp) : ({} as unknown as ReturnType<typeof getFirestore>);
-export const adminAuth = adminApp ? getAuth(adminApp) : ({} as unknown as ReturnType<typeof getAuth>);
+// Export mock objects if adminApp is null to prevent runtime errors from uninitialized SDK
+const getMockService = (serviceName: string) => new Proxy({}, {
+  get: () => {
+    throw new Error(`Firebase Admin SDK for ${serviceName} is not initialized. Check environment variables.`);
+  }
+});
+
+export const adminDb = adminApp ? getFirestore(adminApp) : getMockService("Firestore") as unknown as ReturnType<typeof getFirestore>;
+export const adminAuth = adminApp ? getAuth(adminApp) : getMockService("Auth") as unknown as ReturnType<typeof getAuth>;

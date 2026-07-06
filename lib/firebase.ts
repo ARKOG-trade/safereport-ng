@@ -8,6 +8,20 @@ let db: Firestore | null = null;
 export function initializeFirebase(): Firestore {
   if (db) return db;
 
+  // Only initialize Firebase client-side in the browser
+  if (typeof window === 'undefined') {
+    // During server-side rendering or build, return a mock or throw if strict
+    if (process.env.NODE_ENV === "production") {
+      // In production SSR, if client-side Firebase is needed, it implies a misconfiguration
+      // However, for Vercel build, we just want to avoid errors, so return a mock
+      console.warn("Attempted to initialize client-side Firebase on server during production build. Returning mock Firestore.");
+      return {} as Firestore; 
+    } else {
+      console.warn("Attempted to initialize client-side Firebase on server. Returning mock Firestore.");
+      return {} as Firestore; // Return a mock object for non-production SSR
+    }
+  }
+
   if (
     !process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
     !process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
