@@ -7,7 +7,7 @@
  */
 
 import { getDb } from '@/lib/firebase';
-import { Timestamp, Firestore, collection, query, where, getDocs, orderBy, addDoc } from 'firebase/firestore';
+import { Timestamp, Firestore, collection, query, where, getDocs, orderBy, addDoc, limit } from 'firebase/firestore';
 import { DomainEvent, DomainEventPublisher, EventType, createDomainEvent } from '@/lib/domainEvents';
 
 /**
@@ -250,6 +250,28 @@ export class AuditLogService {
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditEntry));
     } catch (error) {
       console.error('Error getting audit logs:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get global audit logs with limit
+   */
+  public static async getAuditLogs({ limit: logLimit }: { limit: number }): Promise<AuditEntry[]> {
+    try {
+      const db = getDb();
+      if (!isFirestoreInitialized(db)) return [];
+
+      const auditQuery = query(
+        collection(db, 'auditLogs'),
+        orderBy('timestamp', 'desc'),
+        limit(logLimit)
+      );
+
+      const snapshot = await getDocs(auditQuery);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditEntry));
+    } catch (error) {
+      console.error('Error getting global audit logs:', error);
       return [];
     }
   }
