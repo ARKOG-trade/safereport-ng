@@ -6,9 +6,13 @@ export function formatDate(value: unknown): string {
   try {
     let date: Date;
 
-    const maybeDateLike = value as { toDate?: () => Date };
+    const maybeDateLike = value as { toDate?: () => Date; _seconds?: number; seconds?: number };
     if (typeof maybeDateLike.toDate === "function") {
       date = maybeDateLike.toDate();
+    } else if (typeof maybeDateLike._seconds === "number") {
+      date = new Date(maybeDateLike._seconds * 1000);
+    } else if (typeof maybeDateLike.seconds === "number") {
+      date = new Date(maybeDateLike.seconds * 1000);
     } else if (value instanceof Date) {
       date = value;
     } else {

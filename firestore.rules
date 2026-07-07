@@ -69,7 +69,7 @@ service cloud.firestore {
       allow create: if isSuperAdmin();
       allow read: if isSuperAdmin() || isOrgAdmin(orgId);
       allow update: if isSuperAdmin() || isOrgAdmin(orgId);
-      allow delete: if isSuperAdmin();
+      allow delete: if false;
     }
 
     // Branches Collection Rules
@@ -77,7 +77,7 @@ service cloud.firestore {
       allow create: if isSuperAdmin() || isOrgAdmin(request.resource.data.organizationId);
       allow read: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(branchId)));
       allow update: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(branchId)));
-      allow delete: if isSuperAdmin();
+      allow delete: if false;
     }
 
     // Units Collection Rules
@@ -85,7 +85,7 @@ service cloud.firestore {
       allow create: if isSuperAdmin() || isOrgAdmin(request.resource.data.organizationId) || isBranchAdmin(request.resource.data.branchId);
       allow read: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(resource.data.branchId) || isUnitAdmin(unitId) || isUnitMember(unitId)));
       allow update: if isSuperAdmin() || (resource.data.active == true && (isOrgAdmin(resource.data.organizationId) || isBranchAdmin(resource.data.branchId) || isUnitAdmin(unitId)));
-      allow delete: if isSuperAdmin();
+      allow delete: if false;
     }
 
     // Reports Collection Rules (Enhanced with new hierarchy, maintaining backward compatibility)
@@ -125,27 +125,27 @@ service cloud.firestore {
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'publicMessage', 'updatedAt']));
 
       // Only Super Admin can delete reports
-      allow delete: if isSuperAdmin();
+      allow delete: if false;
     }
 
     // Audit Log Collection Rules (Immutable)
-    match /auditLog/{auditId} {
+    match /auditLogs/{auditId} {
       allow create: if isAuthenticated();
       allow read: if isSuperAdmin() ||
                   // Org Admin can read audit logs for entities in their organization
-                  (request.resource.data.organizationId != null && isOrgAdmin(request.resource.data.organizationId)) ||
+                  (resource.data.organizationId != null && isOrgAdmin(resource.data.organizationId)) ||
                   // Branch Admin can read audit logs for entities in their branch
-                  (request.resource.data.branchId != null && isBranchAdmin(request.resource.data.branchId)) ||
+                  (resource.data.branchId != null && isBranchAdmin(resource.data.branchId)) ||
                   // Unit Admin/Member can read audit logs for entities in their unit
-                  (request.resource.data.unitId != null && (isUnitAdmin(request.resource.data.unitId) || isUnitMember(request.resource.data.unitId)));
+                  (resource.data.unitId != null && (isUnitAdmin(resource.data.unitId) || isUnitMember(resource.data.unitId)));
       allow update, delete: if false;
     }
 
     // Notifications Collection Rules
     match /notifications/{notificationId} {
       allow create: if isAuthenticated();
-      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId && request.resource.data.keys().hasOnly(['read']);
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.recipientUid;
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.recipientUid && request.resource.data.keys().hasOnly([\'read\']);
       allow delete: if false;
     }
 
@@ -154,7 +154,7 @@ service cloud.firestore {
       allow create: if isSuperAdmin();
       allow read: if true;
       allow update: if isSuperAdmin();
-      allow delete: if isSuperAdmin();
+      allow delete: if false;
     }
   }
 }

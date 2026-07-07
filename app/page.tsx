@@ -40,6 +40,11 @@ export default function Home() {
         <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-8 shadow-[0_35px_80px_-40px_rgba(15,23,42,0.35)] backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/95">
           <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
             <div>
+              <div className="mb-8 flex items-center gap-4">
+                <img src="/logo-dfoc.png" alt="DFOC Logo" className="h-12 w-auto" />
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
+                <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">DFOC</span>
+              </div>
               <span className="inline-flex rounded-full bg-slate-900 px-4 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white shadow-sm shadow-slate-900/10 dark:bg-slate-50 dark:text-slate-950">
                 SafeReport NG
               </span>
@@ -48,8 +53,7 @@ export default function Home() {
                 SafeReport NG
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">
-                Anonymous crime and emergency reporting platform built for fast, secure,
-                and modern incident reporting.
+                Anonymous and secure reporting platform for crime, emergencies, corruption, missing persons, and public safety concerns.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
   <Link
