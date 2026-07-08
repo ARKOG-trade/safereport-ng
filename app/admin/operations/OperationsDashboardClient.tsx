@@ -78,7 +78,14 @@ export default function OperationsDashboardClient() {
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Operations Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <img src="/logo-dfoc.png" alt="DFOC Logo" className="h-10 w-auto" />
+          <div className="h-8 w-px bg-gray-200"></div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 leading-none">Operations Dashboard</h1>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mt-1">Dark Figure of Crime • SafeReport NG</p>
+          </div>
+        </div>
         <div className={`px-4 py-2 rounded-full font-semibold ${
           systemStatus === 'HEALTHY' ? 'bg-green-100 text-green-800' :
           systemStatus === 'WARNING' ? 'bg-yellow-100 text-yellow-800' :

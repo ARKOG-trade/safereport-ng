@@ -10,7 +10,9 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       // Super Admin is identified by a specific email, existing outside the institutional hierarchy
-      return isAuthenticated() && request.auth.token.email == 'admin@safereport.ng';
+      return isAuthenticated() && 
+        (request.auth.token.email == 'admin@safereport.ng' || 
+         request.auth.token.email.lower() == 'admin@safereport.ng');
     }
 
     function getOrgData(orgId) {
@@ -129,7 +131,7 @@ service cloud.firestore {
     }
 
     // Audit Log Collection Rules (Immutable)
-    match /auditLogs/{auditId} {
+    match /auditLog/{auditId} {
       allow create: if isAuthenticated();
       allow read: if isSuperAdmin() ||
                   // Org Admin can read audit logs for entities in their organization

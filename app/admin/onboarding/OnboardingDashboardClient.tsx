@@ -238,7 +238,14 @@ export default function OnboardingDashboardClient() {
       <nav className="border-b border-slate-200 bg-white px-8 py-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-8">
-            <h1 className="text-xl font-bold tracking-tight">SafeReport Admin</h1>
+            <div className="flex items-center gap-3">
+              <img src="/logo-dfoc.png" alt="DFOC Logo" className="h-8 w-auto" />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold leading-none">DFOC</span>
+                <span className="text-[8px] font-medium uppercase tracking-wider text-slate-500 mt-0.5">Dark Figure of Crime</span>
+              </div>
+            </div>
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
             <div className="flex gap-2">
               <Link href="/admin" className="rounded-lg px-4 py-2 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Reports</Link>
               <Link href="/admin/onboarding" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-slate-900">Onboarding</Link>
@@ -359,6 +366,23 @@ export default function OnboardingDashboardClient() {
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`${editingEntity ? 'Edit' : 'Add'} ${activeTab.slice(0, -1)}`}>
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="flex justify-end gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="rounded-xl px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl bg-slate-900 px-6 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+
           {activeTab === 'organizations' && (
             <>
               <div className="grid gap-6 sm:grid-cols-2">

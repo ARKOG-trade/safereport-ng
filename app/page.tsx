@@ -41,9 +41,12 @@ export default function Home() {
           <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
             <div>
               <div className="mb-8 flex items-center gap-4">
-                <img src="/logo-dfoc.png" alt="DFOC Logo" className="h-12 w-auto" />
-                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
-                <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">DFOC</span>
+                <img src="/logo-dfoc.png" alt="DFOC Logo" className="h-16 w-auto" />
+                <div className="h-10 w-px bg-slate-200 dark:bg-slate-700"></div>
+                <div className="flex flex-col">
+                  <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-none">DFOC</span>
+                  <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mt-1">Dark Figure of Crime</span>
+                </div>
               </div>
               <span className="inline-flex rounded-full bg-slate-900 px-4 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white shadow-sm shadow-slate-900/10 dark:bg-slate-50 dark:text-slate-950">
                 SafeReport NG
