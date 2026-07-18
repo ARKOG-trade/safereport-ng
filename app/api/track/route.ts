@@ -3,58 +3,40 @@ import { adminDb } from "@/lib/firebase-admin";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const trackingCode = body.trackingCode?.trim();
+    // DIAGNOSTIC: Check Admin SDK and document visibility
+    let sdkInitialized = false;
+    let docCount = 0;
+    let sampleCodes: string[] = [];
+    let errorInfo: string | null = null;
 
-    if (!trackingCode) {
-      return NextResponse.json(
-        { error: "Tracking code required" },
-        { status: 400 }
-      );
+    try {
+      // Check if adminDb is initialized and accessible
+      const reportsRef = adminDb.collection("reports");
+      const snapshot = await reportsRef.limit(3).get();
+      
+      sdkInitialized = true;
+      docCount = snapshot.size;
+      sampleCodes = snapshot.docs.map(doc => doc.data().trackingCode || "NO_CODE");
+    } catch (e: any) {
+      errorInfo = e.message || String(e);
     }
-
-    // Try trackingCode first (exact match)
-    let snapshot = await adminDb
-      .collection("reports")
-      .where("trackingCode", "==", trackingCode.toUpperCase())
-      .limit(1)
-      .get();
-
-    // If not found, try caseNumber (exact match)
-    if (snapshot.empty) {
-      snapshot = await adminDb
-        .collection("reports")
-        .where("caseNumber", "==", trackingCode.toUpperCase())
-        .limit(1)
-        .get();
-    }
-
-    if (snapshot.empty) {
-      return NextResponse.json({
-        success: true,
-        report: null,
-      });
-    }
-
-    const report = snapshot.docs[0].data();
 
     return NextResponse.json({
-      success: true,
-      report: {
-        trackingCode: report.trackingCode,
-        category: report.category,
-        institution: report.institution,
-        priority: report.priority,
-        status: report.status,
-        publicMessage: report.publicMessage || "",
-        createdAt: report.createdAt || null,
+      diagnostic: true,
+      sdkInitialized,
+      docCount,
+      sampleCodes,
+      errorInfo,
+      env: {
+        projectId: process.env.FIREBASE_PROJECT_ID || "MISSING",
+        adminProjectId: process.env.FIREBASE_ADMIN_PROJECT_ID || "MISSING",
+        clientProjectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "MISSING"
       },
+      timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    console.error(error);
-
+  } catch (error: any) {
     return NextResponse.json(
-      { error: "Server error" },
+      { error: error.message || String(error) },
       { status: 500 }
     );
   }
